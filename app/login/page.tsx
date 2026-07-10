@@ -1,15 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PawPrint } from "lucide-react";
-import { Suspense } from "react";
+
+function getPosition(timeoutMs = 12000): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!("geolocation" in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60000 }
+    );
+  });
+}
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(
     params.get("error") === "disabled" ? "Your account is disabled. Contact your manager." : null
   );
@@ -27,7 +38,9 @@ function LoginForm() {
       setLoading(false);
       return;
     }
+
     // Record login session (append-only history)
+    let sessionId: string | null = null;
     try {
       const ua = navigator.userAgent;
       const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : "Other";
@@ -37,8 +50,31 @@ function LoginForm() {
         .insert({ profile_id: data.user.id, device, browser })
         .select("id")
         .single();
-      if (sess) localStorage.setItem("poms_session_id", sess.id);
+      if (sess) {
+        sessionId = sess.id;
+        localStorage.setItem("poms_session_id", sess.id);
+      }
     } catch { /* non-blocking */ }
+
+    // Geofence check (server decides; exempt roles skip, "off" mode skips)
+    try {
+      setStatus("Checking location…");
+      const coords = await getPosition();
+      const res = await fetch("/api/auth/geocheck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...(coords ?? {}), session_id: sessionId }),
+      });
+      const verdict = await res.json();
+      if (!verdict.allowed) {
+        localStorage.removeItem("poms_session_id");
+        setError(verdict.reason ?? "Login is only allowed at the store.");
+        setStatus(null);
+        setLoading(false);
+        return;
+      }
+    } catch { /* geocheck unavailable → allow (fails open to avoid lockout) */ }
+
     router.push("/dashboard");
     router.refresh();
   }
@@ -66,7 +102,7 @@ function LoginForm() {
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button className="btn-primary w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign In"}
+            {loading ? (status ?? "Signing in…") : "Sign In"}
           </button>
         </form>
         <p className="mt-4 text-center text-xs text-slate-400">

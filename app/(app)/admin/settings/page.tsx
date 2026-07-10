@@ -6,6 +6,11 @@ import { SettingRow } from "./setting-forms";
 export const dynamic = "force-dynamic";
 
 const DESCRIPTIONS: Record<string, string> = {
+  geofence_mode: 'Location security for login + clock: "off" · "flag" (allow but mark) · "block" (refuse away from shop)',
+  store_lat: "Shop latitude — right-click your shop in Google Maps and copy the first number",
+  store_lng: "Shop longitude — the second number from Google Maps",
+  geofence_radius_m: "Allowed distance from the shop in meters (150–250 recommended; GPS is imprecise indoors)",
+  geo_exempt_roles: 'Roles that can log in from anywhere, e.g. ["super_admin","manager"]',
   clock_ip_mode: 'Clock-in security: "off" = no check · "flag" = allow but mark for review · "block" = refuse outside store network',
   allowed_clock_ips: 'Store network IPs, comma-separated. Prefix match supported, e.g. "94.204.10.7" or "94.204."',
   overdue_threshold_minutes: "Minutes before shift end when unfinished tasks start counting as overdue",

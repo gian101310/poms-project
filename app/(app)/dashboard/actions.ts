@@ -3,7 +3,10 @@ import { headers } from "next/headers";
 import { requireProfile } from "@/lib/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { todayStr } from "@/lib/tz";
+import { loadGeoSettings, evaluateGeofence } from "@/lib/geo";
 import { revalidatePath } from "next/cache";
+
+type Coords = { lat: number; lng: number } | null;
 
 function clientIp(): string {
   const h = headers();
@@ -26,12 +29,16 @@ async function ipCheck(admin: any): Promise<{ allowed: boolean; flag: boolean; i
   return { allowed: true, flag: true, ip }; // mode === "flag"
 }
 
-export async function clockIn() {
+export async function clockIn(coords: Coords = null) {
   const profile = await requireProfile();
   try {
     const admin = createAdminClient();
     const check = await ipCheck(admin);
     if (!check.allowed) return { error: "Clock-in is only allowed from the store network. Ask your manager if this is wrong." };
+
+    const geo = evaluateGeofence(await loadGeoSettings(admin), profile.role, coords);
+    if (!geo.allowed) return { error: geo.reason ?? "Clock-in is only allowed at the store." };
+    check.flag = check.flag || geo.flag;
 
     const today = todayStr();
     const { data: existing } = await admin.from("attendance_records")
@@ -65,11 +72,14 @@ export async function clockIn() {
   }
 }
 
-export async function clockOut() {
+export async function clockOut(coords: Coords = null) {
   const profile = await requireProfile();
   try {
     const admin = createAdminClient();
     const check = await ipCheck(admin);
+    const geo = evaluateGeofence(await loadGeoSettings(admin), profile.role, coords);
+    if (!geo.allowed) return { error: geo.reason ?? "Clock-out is only allowed at the store." };
+    check.flag = check.flag || geo.flag;
     const today = todayStr();
     const { data: rec } = await admin.from("attendance_records")
       .select("id, clock_in, flagged").eq("profile_id", profile.id).eq("work_date", today).maybeSingle();
