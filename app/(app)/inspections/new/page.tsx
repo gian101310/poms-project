@@ -7,7 +7,7 @@ export default async function NewInspectionPage() {
   await requireRole(["super_admin", "manager", "supervisor"]);
   const supabase = createClient();
   const { data: departments } = await supabase.from("departments")
-    .select("id, name").eq("is_active", true).order("name");
+    .select("id, name, code").eq("is_active", true).order("name");
   return (
     <div>
       <PageHeader title="New Inspection" />

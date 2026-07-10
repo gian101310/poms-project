@@ -135,12 +135,14 @@ export function ScheduleForm({ employees, shifts }: { employees: any[]; shifts: 
 
 export function RotationForm({ employees, shifts }: { employees: any[]; shifts: any[] }) {
   const [open, setOpen] = useState(false);
+  const [count, setCount] = useState(2);
   const [pending, start] = useTransition();
   const router = useRouter();
+  const maxCount = Math.min(4, shifts.length, employees.length);
   return (
     <>
-      <button className="btn-primary" onClick={() => setOpen(true)}><RefreshCcw size={16} /> Rotation Pair</button>
-      <Modal title="Rotating Counterpart Pair" open={open} onClose={() => setOpen(false)}>
+      <button className="btn-primary" onClick={() => setOpen(true)}><RefreshCcw size={16} /> Rotation Group</button>
+      <Modal title="Rotating Shift Group" open={open} onClose={() => setOpen(false)}>
         <form className="space-y-3" action={(fd) => start(async () => {
           const r: any = await generateRotation(fd);
           if (r?.error) alert(r.error);
@@ -148,38 +150,39 @@ export function RotationForm({ employees, shifts }: { employees: any[]; shifts: 
           router.refresh();
         })}>
           <p className="text-xs text-slate-400">
-            Two employees swap shifts on a fixed cycle (e.g. every 2 weeks, on Monday).
-            Existing entries for the same dates are overwritten — approved leave days are skipped.
+            2, 3 or more employees cycle through shifts on a fixed rhythm (e.g. every 2 weeks,
+            changing on Monday). Each cycle everyone moves to the next shift.
+            Approved leave days are skipped.
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Employee A *</label>
-              <select name="profile_a" className="input" required>
-                {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-              </select>
+          <div>
+            <label className="label">People in rotation</label>
+            <select className="input !w-auto" value={count} onChange={(e) => setCount(Number(e.target.value))}>
+              {Array.from({ length: Math.max(1, maxCount - 1) }, (_, i) => i + 2).map((c) => (
+                <option key={c} value={c}>{c} employees / {c} shifts</option>
+              ))}
+            </select>
+          </div>
+          {Array.from({ length: count }, (_, i) => (
+            <div key={i} className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Employee {i + 1} *</label>
+                <select name="rot_profile" className="input" required defaultValue={employees[i]?.id}>
+                  {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Starts on *</label>
+                <select name="rot_shift" className="input" required defaultValue={shifts[i]?.id}>
+                  {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="label">A starts on *</label>
-              <select name="shift_a" className="input" required>
-                {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Employee B *</label>
-              <select name="profile_b" className="input" required>
-                {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">B starts on *</label>
-              <select name="shift_b" className="input" required>
-                {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
+          ))}
+          <div className="grid grid-cols-3 gap-3">
             <div><label className="label">Start (a Monday) *</label><input name="start_date" type="date" className="input" required /></div>
             <div><label className="label">Until *</label><input name="until_date" type="date" className="input" required /></div>
             <div>
-              <label className="label">Swap every</label>
+              <label className="label">Rotate every</label>
               <select name="rotate_weeks" className="input" defaultValue="2">
                 {[1, 2, 3, 4].map((w) => <option key={w} value={w}>{w} week{w > 1 ? "s" : ""}</option>)}
               </select>

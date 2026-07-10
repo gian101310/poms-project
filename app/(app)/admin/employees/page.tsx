@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, EmptyState, Table } from "@/components/ui";
 import { fmtDate } from "@/lib/tz";
-import { EmployeeForm, EmployeeRowActions } from "./employee-forms";
+import { EmployeeForm, EmployeeRowActions, EditEmployee } from "./employee-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,12 @@ export default async function EmployeesPage() {
               </td>
               <td className="td text-xs">{fmtDate(e.date_hired)}</td>
               <td className="td"><Badge value={e.status} /></td>
-              <td className="td"><EmployeeRowActions employee={e} departments={departments ?? []} /></td>
+              <td className="td">
+                <div className="flex gap-1">
+                  <EditEmployee employee={e} departments={departments ?? []} positions={positions ?? []} />
+                  <EmployeeRowActions employee={e} departments={departments ?? []} />
+                </div>
+              </td>
             </tr>
           ))}
         </Table>

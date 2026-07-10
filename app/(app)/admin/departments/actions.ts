@@ -15,6 +15,17 @@ export async function createDepartment(fd: FormData) {
   return error ? { error: error.message } : { ok: true };
 }
 
+export async function updateDepartment(id: string, fd: FormData) {
+  await requireRole(["super_admin"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("departments").update({
+    name: String(fd.get("name")),
+    code: String(fd.get("code")).trim().toUpperCase(),
+  }).eq("id", id);
+  revalidatePath("/admin/departments");
+  return error ? { error: error.message } : { ok: true };
+}
+
 export async function toggleDepartment(id: string, isActive: boolean) {
   await requireRole(["super_admin"]);
   const supabase = createClient();

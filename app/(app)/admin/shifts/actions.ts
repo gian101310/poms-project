@@ -66,33 +66,35 @@ export async function assignSchedule(fd: FormData) {
   return error ? { error: error.message } : { ok: true };
 }
 
-// Rotating counterpart pair: A and B swap shifts every N weeks, anchored on start date.
-// Approved-leave days already on the schedule are preserved (not overwritten).
+// Rotating group: 2, 3, or more employees cycle through the same number of
+// shifts every N weeks (anchored on a Monday). Each cycle everyone moves to
+// the next shift in the list. Approved-leave days are preserved.
 export async function generateRotation(fd: FormData) {
   const admin = await requireRole(["super_admin"]);
   const supabase = createClient();
-  const a = String(fd.get("profile_a"));
-  const b = String(fd.get("profile_b"));
-  const shiftA = String(fd.get("shift_a"));
-  const shiftB = String(fd.get("shift_b"));
+  const people = fd.getAll("rot_profile").map(String).filter(Boolean);
+  const startShifts = fd.getAll("rot_shift").map(String).filter(Boolean);
   const startStr = String(fd.get("start_date"));
   const untilStr = String(fd.get("until_date"));
   const rotateWeeks = Math.max(1, Number(fd.get("rotate_weeks") ?? 2));
   const days = fd.getAll("days").map(Number);
+  const n = people.length;
 
-  if (a === b) return { error: "Pick two different employees." };
-  if (shiftA === shiftB) return { error: "Pick two different shifts." };
+  if (n < 2) return { error: "Pick at least two employees." };
+  if (startShifts.length !== n) return { error: "Assign a starting shift to every employee." };
+  if (new Set(people).size !== n) return { error: "Each employee can only appear once." };
+  if (new Set(startShifts).size !== n) return { error: "Each employee needs a different starting shift." };
   if (!days.length) return { error: "Select at least one work day." };
 
   const start = new Date(startStr + "T00:00:00Z");
   const until = new Date(untilStr + "T00:00:00Z");
   if (until < start) return { error: "'Until' is before start." };
   if ((until.getTime() - start.getTime()) / 86400000 > 190) return { error: "Range too long (max ~6 months). Re-run it each season." };
-  if (start.getUTCDay() !== 1) return { error: "Start date must be a Monday (rotation swaps on Mondays)." };
+  if (start.getUTCDay() !== 1) return { error: "Start date must be a Monday (rotation changes on Mondays)." };
 
   // Preserve existing leave days
   const { data: leaveDays } = await supabase.from("employee_schedules")
-    .select("profile_id, work_date").in("profile_id", [a, b])
+    .select("profile_id, work_date").in("profile_id", people)
     .gte("work_date", startStr).lte("work_date", untilStr).eq("status", "leave");
   const leaveSet = new Set((leaveDays ?? []).map((l: any) => `${l.profile_id}|${l.work_date}`));
 
@@ -101,14 +103,11 @@ export async function generateRotation(fd: FormData) {
     const dateStr = d.toISOString().slice(0, 10);
     if (!days.includes(dow(dateStr))) continue;
     const weekIndex = Math.floor((d.getTime() - start.getTime()) / (7 * 86400000));
-    const swapped = Math.floor(weekIndex / rotateWeeks) % 2 === 1;
-    const aShift = swapped ? shiftB : shiftA;
-    const bShift = swapped ? shiftA : shiftB;
-    if (!leaveSet.has(`${a}|${dateStr}`)) {
-      rows.push({ profile_id: a, shift_id: aShift, work_date: dateStr, status: "scheduled", created_by: admin.id });
-    }
-    if (!leaveSet.has(`${b}|${dateStr}`)) {
-      rows.push({ profile_id: b, shift_id: bShift, work_date: dateStr, status: "scheduled", created_by: admin.id });
+    const cycle = Math.floor(weekIndex / rotateWeeks); // everyone advances one shift per cycle
+    for (let i = 0; i < n; i++) {
+      const shift = startShifts[(i + cycle) % n];
+      if (leaveSet.has(`${people[i]}|${dateStr}`)) continue;
+      rows.push({ profile_id: people[i], shift_id: shift, work_date: dateStr, status: "scheduled", created_by: admin.id });
     }
   }
   if (!rows.length) return { error: "No schedule days generated." };

@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Table } from "@/components/ui";
-import { DeptForm, DeptToggle } from "./dept-forms";
+import { DeptForm, DeptToggle, EditDept } from "./dept-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,12 @@ export default async function DepartmentsPage() {
               <td className="td text-xs">{sups.map((s: any) => s.profiles?.full_name).join(", ") || "—"}</td>
               <td className="td">{(d.department_assignments ?? []).length}</td>
               <td className="td"><Badge value={d.is_active ? "active" : "suspended"} /></td>
-              <td className="td"><DeptToggle id={d.id} isActive={d.is_active} /></td>
+              <td className="td">
+                <div className="flex gap-1">
+                  <EditDept dept={d} />
+                  <DeptToggle id={d.id} isActive={d.is_active} />
+                </div>
+              </td>
             </tr>
           );
         })}

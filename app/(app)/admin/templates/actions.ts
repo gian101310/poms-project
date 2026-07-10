@@ -1,6 +1,7 @@
 "use server";
 import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
+import { defaultTasksFor } from "@/lib/default-checklists";
 import { revalidatePath } from "next/cache";
 
 export async function createTemplate(fd: FormData) {
@@ -8,6 +9,7 @@ export async function createTemplate(fd: FormData) {
   const supabase = createClient();
   const departmentId = String(fd.get("department_id"));
   const shiftId = String(fd.get("shift_id"));
+  const prefill = String(fd.get("prefill") ?? "default"); // default | copy | blank
 
   // Version bump: deactivate existing active template for this dept+shift
   const { data: existing } = await supabase.from("checklist_templates")
@@ -28,16 +30,33 @@ export async function createTemplate(fd: FormData) {
     created_by: profile.id,
   }).select("id").single();
 
-  // Copy tasks from the previous version so editing is incremental
-  if (!error && created && existing) {
-    const { data: oldTasks } = await supabase.from("template_tasks").select("*").eq("template_id", existing.id);
-    if (oldTasks?.length) {
-      await supabase.from("template_tasks").insert(oldTasks.map((t: any) => ({
-        template_id: created.id, title: t.title, description: t.description,
-        sort_order: t.sort_order, priority: t.priority, tags: t.tags,
-        requires_photo: t.requires_photo, estimated_minutes: t.estimated_minutes, recurrence: t.recurrence,
+  if (!error && created) {
+    if (prefill === "copy" && existing) {
+      // Copy tasks from the previous version so editing is incremental
+      const { data: oldTasks } = await supabase.from("template_tasks").select("*").eq("template_id", existing.id);
+      if (oldTasks?.length) {
+        await supabase.from("template_tasks").insert(oldTasks.map((t: any) => ({
+          template_id: created.id, title: t.title, description: t.description,
+          sort_order: t.sort_order, priority: t.priority, tags: t.tags,
+          requires_photo: t.requires_photo, estimated_minutes: t.estimated_minutes, recurrence: t.recurrence,
+        })));
+      }
+    } else if (prefill === "default") {
+      // Prefill from the department's default task library
+      const { data: dept } = await supabase.from("departments").select("code").eq("id", departmentId).single();
+      const defaults = defaultTasksFor(dept?.code ?? "");
+      await supabase.from("template_tasks").insert(defaults.map((t, i) => ({
+        template_id: created.id,
+        title: t.title,
+        description: t.description ?? null,
+        sort_order: i,
+        priority: t.priority ?? "normal",
+        tags: t.tags ?? [],
+        requires_photo: t.requires_photo ?? false,
+        recurrence: { type: "daily" },
       })));
     }
+    // prefill === "blank" → no tasks
   }
   revalidatePath("/admin/templates");
   return error ? { error: error.message } : { ok: true };

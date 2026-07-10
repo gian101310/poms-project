@@ -2,25 +2,32 @@
 import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createInspection } from "./actions";
+import { criteriaFor } from "@/lib/inspection-criteria";
 import { Plus, Trash2 } from "lucide-react";
 
-const DEFAULT_CRITERIA = ["Cleanliness", "Animal condition", "Stock levels", "Equipment", "Safety compliance"];
 const TYPES = ["opening", "mid_shift", "closing", "random"];
 
 type Item = { criterion: string; max_score: number; score: number; remark: string };
+
+const buildItems = (code?: string): Item[] =>
+  criteriaFor(code).map((c) => ({ criterion: c, max_score: 10, score: 10, remark: "" }));
 
 export function InspectionForm({ departments }: { departments: any[] }) {
   const [type, setType] = useState("opening");
   const [dept, setDept] = useState(departments[0]?.id ?? "");
   const [remarks, setRemarks] = useState("");
-  const [items, setItems] = useState<Item[]>(
-    DEFAULT_CRITERIA.map((c) => ({ criterion: c, max_score: 10, score: 10, remark: "" }))
-  );
+  const [items, setItems] = useState<Item[]>(buildItems(departments[0]?.code));
   const [pending, start] = useTransition();
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [signed, setSigned] = useState(false);
+
+  function onDeptChange(id: string) {
+    setDept(id);
+    const d = departments.find((x) => x.id === id);
+    setItems(buildItems(d?.code)); // department-relevant criteria
+  }
 
   function pos(e: any) {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -68,9 +75,10 @@ export function InspectionForm({ departments }: { departments: any[] }) {
         </div>
         <div>
           <label className="label">Department</label>
-          <select className="input" value={dept} onChange={(e) => setDept(e.target.value)}>
+          <select className="input" value={dept} onChange={(e) => onDeptChange(e.target.value)}>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
+          <p className="mt-1 text-xs text-slate-400">Criteria adjust automatically per department.</p>
         </div>
       </div>
 
@@ -85,7 +93,7 @@ export function InspectionForm({ departments }: { departments: any[] }) {
         <div className="space-y-2">
           {items.map((it, idx) => (
             <div key={idx} className="flex flex-wrap items-center gap-2">
-              <input className="input !w-48" placeholder="Criterion" value={it.criterion}
+              <input className="input !w-64" placeholder="Criterion" value={it.criterion}
                 onChange={(e) => setItems(items.map((x, i) => i === idx ? { ...x, criterion: e.target.value } : x))} />
               <input className="input !w-20" type="number" min={0} max={it.max_score} value={it.score}
                 onChange={(e) => setItems(items.map((x, i) => i === idx ? { ...x, score: Number(e.target.value) } : x))} />

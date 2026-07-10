@@ -13,7 +13,7 @@ import {
 type NavItem = { href: string; label: string; icon: any };
 
 const staffNav: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "My Day", icon: LayoutDashboard },
   { href: "/checklist", label: "My Checklist", icon: ClipboardCheck },
   { href: "/handover", label: "Shift Handover", icon: ArrowLeftRight },
   { href: "/animals", label: "Animal Welfare", icon: HeartPulse },

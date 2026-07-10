@@ -36,6 +36,14 @@ export function TemplateForm({ departments, shifts }: { departments: any[]; shif
                 {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
+            <div>
+              <label className="label">Start with</label>
+              <select name="prefill" className="input" defaultValue="default">
+                <option value="default">Default tasks for this department (recommended)</option>
+                <option value="copy">Copy tasks from the previous version</option>
+                <option value="blank">Blank — I&apos;ll add tasks myself</option>
+              </select>
+            </div>
             <button className="btn-primary w-full" disabled={pending}>{pending ? "Creating…" : "Create Template"}</button>
             <p className="text-xs text-slate-400">If an active template already exists for this department + shift, it will be replaced by this new version (history is preserved).</p>
           </form>

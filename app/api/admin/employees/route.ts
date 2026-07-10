@@ -67,6 +67,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, id: created.user.id });
     }
 
+    if (body.action === "update") {
+      const { error } = await admin.from("profiles").update({
+        full_name: body.full_name,
+        role: body.role,
+        position_id: body.position_id || null,
+        phone: body.phone || null,
+        email: body.email || null,
+        date_hired: body.date_hired || null,
+        emergency_contact: body.emergency_contact ?? {},
+      }).eq("id", body.profile_id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+      // Replace department assignments
+      if (Array.isArray(body.department_ids)) {
+        const supIds: string[] = body.is_supervisor_of ?? [];
+        await admin.from("department_assignments").delete().eq("profile_id", body.profile_id);
+        const assignments = Array.from(new Set([...body.department_ids, ...supIds])).map((d: string) => ({
+          profile_id: body.profile_id,
+          department_id: d,
+          is_primary_supervisor: supIds.includes(d),
+        }));
+        if (assignments.length) await admin.from("department_assignments").insert(assignments);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.action === "reset_password") {
       if (String(body.password ?? "").length < 8) {
         return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });

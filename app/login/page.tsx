@@ -77,7 +77,7 @@ function LoginForm() {
       }
     } catch { /* geocheck unavailable → allow (fails open to avoid lockout) */ }
 
-    router.push("/dashboard");
+    router.push("/");
     router.refresh();
   }
 
