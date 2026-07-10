@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ClipboardCheck, CheckCheck, ArrowLeftRight, HeartPulse,
   AlertTriangle, FileText, Search as SearchIcon, ClipboardList, CalendarClock,
   Users, Building2, Clock3, ListChecks, Bell, Moon, Sun, LogOut,
-  PawPrint, Menu, X, History, CalendarDays, BarChart3,
+  PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any };
@@ -31,6 +31,7 @@ const supervisorExtra: NavItem[] = [
 
 const managerExtra: NavItem[] = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/reports", label: "Daily Reports", icon: FileText },
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/audit", label: "Audit Trail", icon: History },
 ];
@@ -40,6 +41,7 @@ const adminExtra: NavItem[] = [
   { href: "/admin/departments", label: "Departments", icon: Building2 },
   { href: "/admin/shifts", label: "Shifts & Schedules", icon: Clock3 },
   { href: "/admin/templates", label: "Checklist Templates", icon: ListChecks },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export function Shell({

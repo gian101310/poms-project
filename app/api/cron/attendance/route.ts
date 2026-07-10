@@ -7,8 +7,9 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 // Attendance builder — runs 23:50 Dubai time.
-// Computes late / early-out / overtime for everyone who clocked in,
-// marks absent anyone scheduled who never clocked in (unless on leave/holiday),
+// worked = clock_out − clock_in; overtime = worked − standard_minutes
+// (standard_minutes on the shift; Morning 08–18 with standard 540 ⇒ 1h daily OT).
+// Marks absent anyone scheduled who never clocked in (unless leave/holiday),
 // and closes login sessions with no logout.
 
 function minutesAtTz(iso: string): number {
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   const isHoliday = !!holiday?.length;
 
   const { data: schedules } = await admin.from("employee_schedules")
-    .select("profile_id, status, shifts(name, start_time, end_time, grace_minutes)")
+    .select("profile_id, status, shifts(name, start_time, end_time, grace_minutes, standard_minutes)")
     .eq("work_date", today);
 
   for (const sched of schedules ?? []) {
@@ -55,7 +56,6 @@ export async function GET(req: Request) {
     }
 
     if (!rec?.clock_in) {
-      // Scheduled, no clock-in → absent
       const { error } = await admin.from("attendance_records").upsert({
         profile_id: sched.profile_id, work_date: today, status: "absent",
         shift_snapshot: shift,
@@ -69,20 +69,24 @@ export async function GET(req: Request) {
       continue;
     }
 
-    // Late / early-out / overtime
     const startMin = toMin(shift.start_time);
     const endMin = toMin(shift.end_time);
     const grace = shift.grace_minutes ?? 10;
+    const standard = shift.standard_minutes ?? (endMin - startMin); // null ⇒ full shift, no built-in OT
     const inMin = minutesAtTz(rec.clock_in);
     const outMin = rec.clock_out ? minutesAtTz(rec.clock_out) : null;
 
     const late = Math.max(0, inMin - (startMin + grace));
     const earlyOut = outMin != null ? Math.max(0, endMin - outMin) : 0;
-    const overtime = outMin != null ? Math.max(0, outMin - endMin) : 0;
+    const worked = rec.clock_out
+      ? Math.max(0, Math.round((new Date(rec.clock_out).getTime() - new Date(rec.clock_in).getTime()) / 60000))
+      : rec.worked_minutes ?? 0;
+    const overtime = Math.max(0, worked - standard);
 
     const { error } = await admin.from("attendance_records").update({
       late_minutes: late,
       early_out_minutes: earlyOut,
+      worked_minutes: worked,
       overtime_minutes: overtime,
       status: late > 0 ? "late" : "present",
       shift_snapshot: rec.shift_snapshot ?? shift,
@@ -90,7 +94,7 @@ export async function GET(req: Request) {
     if (error) summary.errors.push(error.message); else summary.updated++;
   }
 
-  // Close login sessions that never logged out (browser closed, etc.)
+  // Close login sessions that never logged out
   const cutoff = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
   const { data: stale } = await admin.from("login_sessions")
     .select("id, last_activity_at").is("logout_at", null).lt("last_activity_at", cutoff);

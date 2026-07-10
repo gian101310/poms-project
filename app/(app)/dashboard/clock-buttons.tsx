@@ -17,7 +17,12 @@ export function ClockButtons({ clockedIn, clockedOut }: { clockedIn: boolean; cl
     </button>
   ) : (
     <button className="btn-primary" disabled={pending}
-      onClick={() => start(async () => { const r = await clockIn(); if (r?.error) alert(r.error); router.refresh(); })}>
+      onClick={() => start(async () => {
+        const r: any = await clockIn();
+        if (r?.error) alert(r.error);
+        else if (r?.warning) alert(r.warning);
+        router.refresh();
+      })}>
       <LogIn size={16} /> Clock In
     </button>
   );
