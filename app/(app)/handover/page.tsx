@@ -21,7 +21,7 @@ export default async function HandoverPage() {
 
   // Supervisors: handovers awaiting approval; everyone: recent handovers in my departments
   const { data: deptHandovers } = await supabase.from("shift_handovers")
-    .select("*, profiles(full_name, employee_code), departments(name), shifts(name)")
+    .select("*, profiles!shift_handovers_profile_id_fkey(full_name, employee_code), departments(name), shifts(name)")
     .gte("work_date", new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10))
     .neq("profile_id", profile.id)
     .order("submitted_at", { ascending: false })

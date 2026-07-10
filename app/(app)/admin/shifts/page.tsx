@@ -16,7 +16,7 @@ export default async function ShiftsPage() {
     supabase.from("shifts").select("*").order("start_time"),
     supabase.from("profiles").select("id, full_name, employee_code").eq("status", "active").order("full_name"),
     supabase.from("employee_schedules")
-      .select("*, profiles(full_name, employee_code), shifts(name)")
+      .select("*, profiles!employee_schedules_profile_id_fkey(full_name, employee_code), shifts(name)")
       .gte("work_date", today).order("work_date").limit(200),
   ]);
 

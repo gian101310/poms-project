@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   if (holiday?.length) return NextResponse.json({ ...summary, note: "Holiday — no checklists generated." });
 
   const { data: schedules, error: schedErr } = await admin.from("employee_schedules")
-    .select("profile_id, shift_id, profiles!inner(id, status, full_name)")
+    .select("profile_id, shift_id, profiles!employee_schedules_profile_id_fkey!inner(id, status, full_name)")
     .eq("work_date", today).eq("status", "scheduled").not("shift_id", "is", null);
   if (schedErr) return NextResponse.json({ error: schedErr.message }, { status: 500 });
 
