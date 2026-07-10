@@ -60,10 +60,12 @@ function LoginForm() {
     try {
       setStatus("Checking location…");
       const coords = await getPosition();
+      const qrToken = params.get("qr") ?? sessionStorage.getItem("poms_qr") ?? undefined;
+      if (params.get("qr")) sessionStorage.setItem("poms_qr", params.get("qr")!);
       const res = await fetch("/api/auth/geocheck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...(coords ?? {}), session_id: sessionId }),
+        body: JSON.stringify({ ...(coords ?? {}), qr: qrToken, session_id: sessionId }),
       });
       const verdict = await res.json();
       if (!verdict.allowed) {

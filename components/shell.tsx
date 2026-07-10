@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ClipboardCheck, CheckCheck, ArrowLeftRight, HeartPulse,
   AlertTriangle, FileText, Search as SearchIcon, ClipboardList, CalendarClock,
   Users, Building2, Clock3, ListChecks, Bell, Moon, Sun, LogOut,
-  PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings,
+  PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings, QrCode,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any };
@@ -30,8 +30,10 @@ const supervisorExtra: NavItem[] = [
 ];
 
 const managerExtra: NavItem[] = [
+  { href: "/overview", label: "Command Center", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/reports", label: "Daily Reports", icon: FileText },
+  { href: "/qr", label: "Shop QR", icon: QrCode },
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/audit", label: "Audit Trail", icon: History },
 ];

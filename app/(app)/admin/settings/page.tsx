@@ -6,6 +6,8 @@ import { SettingRow } from "./setting-forms";
 export const dynamic = "force-dynamic";
 
 const DESCRIPTIONS: Record<string, string> = {
+  qr_login_mode: 'Daily shop QR gate for staff login: "off" · "flag" (allow but mark) · "block" (must scan today\'s QR)',
+  qr_secret: "Secret behind the rotating QR — change it to instantly invalidate all codes",
   geofence_mode: 'Location security for login + clock: "off" · "flag" (allow but mark) · "block" (refuse away from shop)',
   store_lat: "Shop latitude — right-click your shop in Google Maps and copy the first number",
   store_lng: "Shop longitude — the second number from Google Maps",
