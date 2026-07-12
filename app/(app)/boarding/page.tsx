@@ -1,4 +1,4 @@
-import { requireProfile } from "@/lib/session";
+import { isManagerUp, requireProfile } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { fmtDate } from "@/lib/tz";
@@ -14,13 +14,22 @@ const payCls: Record<string, string> = {
 };
 
 export default async function BoardingPage() {
-  await requireProfile();
+  const profile = await requireProfile();
   const supabase = createClient();
-  const { data: stays } = await supabase
+  const [{ data: stays }, { data: groomAssignment }] = await Promise.all([
+    supabase
     .from("boarding_stays")
     .select("*, boarding_pets(*), profiles!boarding_stays_created_by_fkey(full_name)")
-    .order("status", { ascending: true })
-    .order("check_out_date", { ascending: true });
+      .order("status", { ascending: true })
+      .order("check_out_date", { ascending: true }),
+    supabase.from("department_assignments")
+      .select("departments!inner(code)")
+      .eq("profile_id", profile.id)
+      .eq("departments.code", "GROOM")
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const canCreateBoarding = isManagerUp(profile.role) || !groomAssignment;
 
   const active = (stays ?? []).filter((s: any) => s.status === "active");
   const past = (stays ?? []).filter((s: any) => s.status !== "active");
@@ -69,7 +78,13 @@ export default async function BoardingPage() {
 
   return (
     <div>
-      <PageHeader title="Boarding & Kennel" subtitle="Record pets checked in for boarding." action={<NewStayButton />} />
+      <PageHeader title="Boarding & Kennel" subtitle="Record pets checked in for boarding."
+        action={canCreateBoarding ? <NewStayButton /> : null} />
+      {!canCreateBoarding && (
+        <div className="card mb-6 border-l-4 border-l-amber-500 p-4 text-sm text-amber-700">
+          Groomers use the Grooming page for appointments. Boarding intake is handled by non-grooming staff.
+        </div>
+      )}
       {(stays ?? []).length === 0 && <EmptyState message="No boardings yet. Tap “New Boarding” to add one." />}
 
       {active.length > 0 && (

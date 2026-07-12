@@ -12,6 +12,15 @@ function optionalText(value: FormDataEntryValue | null) {
 export async function createGroomingBooking(fd: FormData) {
   const profile = await requireProfile();
   const admin = createAdminClient();
+  if (!isManagerUp(profile.role)) {
+    const { data: assignment } = await admin.from("department_assignments")
+      .select("departments!inner(code)")
+      .eq("profile_id", profile.id)
+      .eq("departments.code", "GROOM")
+      .limit(1)
+      .maybeSingle();
+    if (!assignment) return { error: "Only assigned groomers can add grooming appointments." };
+  }
   const assigned = isManagerUp(profile.role)
     ? String(fd.get("assigned_groomer_id") || profile.id)
     : profile.id;

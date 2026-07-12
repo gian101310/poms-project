@@ -80,7 +80,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     groomingMonthQuery = groomingMonthQuery.eq("store_id", selectedBranch);
   }
 
-  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes] = await Promise.all([
+  let boardingQuery = supabase.from("boarding_stays")
+    .select("id, store_id, owner_name, owner_contact, check_in_date, check_out_date, payment_status, amount, status, stores(name), boarding_pets(id, pet_type, pet_breed, pet_name)")
+    .lte("check_in_date", date)
+    .gte("check_out_date", date)
+    .order("check_out_date", { ascending: true });
+  if (selectedBranch) boardingQuery = boardingQuery.eq("store_id", selectedBranch);
+
+  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes] = await Promise.all([
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     instQuery,
     attQuery,
@@ -95,6 +102,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     deliveryQuery,
     groomingQuery,
     groomingMonthQuery,
+    boardingQuery,
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -124,6 +132,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const groomingConfirmed = groomingRows.filter((g: any) => ["confirmed", "completed"].includes(g.status)).length;
   const groomingCompleted = groomingRows.filter((g: any) => g.status === "completed").length;
   const groomingPaid = groomingRows.filter((g: any) => g.payment_status === "paid").length;
+  const boardingRows = (boardingRes.data ?? []) as any[];
+  const activeBoarding = boardingRows.filter((b: any) => b.status === "active");
+  const boardingPetCount = activeBoarding.reduce((sum: number, b: any) => sum + (b.boarding_pets?.length ?? 0), 0);
+  const boardingDueOut = activeBoarding.filter((b: any) => b.check_out_date === date).length;
+  const boardingArrivals = activeBoarding.filter((b: any) => b.check_in_date === date).length;
   const activeDeliveryMap = new Map(deliveryRows.filter((d: any) => !d.ended_at).map((d: any) => [d.profile_id, d]));
   const onBreak = breakSessions.filter((b: any) => !b.ended_at).length;
   const flaggedBreaks = breakSessions.filter((b: any) => b.flagged).length;
@@ -210,6 +223,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="Break Flags" value={flaggedBreaks} />
           <StatCard label="Delivery Out" value={outForDelivery} />
           <StatCard label="Grooming" value={`${groomingCompleted}/${groomingBooked}`} hint={`${groomingConfirmed} confirmed`} />
+          <StatCard label="Boarding" value={activeBoarding.length} hint={`${boardingPetCount} pet(s)`} />
         </div>
       </div>
 
@@ -319,6 +333,51 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       )}
+
+      <div className="card mb-6 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Boarding status</p>
+            <p className="mt-1 text-sm text-slate-500">Current stays for {date}</p>
+          </div>
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div><p className="font-semibold">{activeBoarding.length}</p><p className="text-xs text-slate-400">Active stays</p></div>
+            <div><p className="font-semibold">{boardingPetCount}</p><p className="text-xs text-slate-400">Pets</p></div>
+            <div><p className="font-semibold">{boardingArrivals}</p><p className="text-xs text-slate-400">Arrivals</p></div>
+            <div><p className="font-semibold">{boardingDueOut}</p><p className="text-xs text-slate-400">Due out</p></div>
+          </div>
+        </div>
+        {activeBoarding.length === 0 ? (
+          <p className="text-sm text-slate-400">No active boarding stays for this date.</p>
+        ) : (
+          <div className="grid gap-2 lg:grid-cols-2">
+            {activeBoarding.slice(0, 8).map((b: any) => (
+              <div key={b.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{b.owner_name}</p>
+                    <p className="text-xs text-slate-400">
+                      {b.stores?.name ?? "Branch"} · {b.check_in_date} to {b.check_out_date}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge value={b.status} />
+                    <Badge value={b.payment_status} />
+                    {b.check_in_date === date && <Badge value="opening" />}
+                    {b.check_out_date === date && <Badge value="closing" />}
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {(b.boarding_pets ?? []).map((p: any) =>
+                    `${p.pet_name ? `${p.pet_name} · ` : ""}${p.pet_type}${p.pet_breed ? ` (${p.pet_breed})` : ""}`
+                  ).join(", ") || "No pets listed"}
+                </p>
+              </div>
+            ))}
+            {activeBoarding.length > 8 && <p className="text-xs text-slate-400">+{activeBoarding.length - 8} more active boarding stay(s)</p>}
+          </div>
+        )}
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Cash Drop" value={money(cashTotals.cash_sales)} hint={`${cashReports.length} report(s)`} />
