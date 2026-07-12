@@ -17,6 +17,7 @@ const staffNav: NavItem[] = [
   { href: "/checklist", label: "My Checklist", icon: ClipboardCheck },
   { href: "/handover", label: "Shift Handover", icon: ArrowLeftRight },
   { href: "/animals", label: "Animal Welfare", icon: HeartPulse },
+  { href: "/boarding", label: "Boarding & Kennel", icon: PawPrint },
   { href: "/incidents", label: "Incidents", icon: AlertTriangle },
   { href: "/memos", label: "Memos", icon: FileText },
   { href: "/attendance", label: "My Attendance", icon: CalendarClock },
