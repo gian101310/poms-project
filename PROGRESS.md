@@ -63,16 +63,24 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 - **2026-07-12** Admin UI: `Admin → Departments` now edits departments **and**
   sections (add/rename/activate/delete). `Admin → Employees` has a **Leave**
   button (date range → leave / off / back-on-roster).
+- **2026-07-12** Auto-generated **20 premium checklist templates** (10 depts ×
+  Morning/Afternoon, 204 tasks) focused on cleanliness/organization/stocking.
+  `lib/default-checklists.ts` updated (added Pharmacy + Kennel). Edit in
+  `Admin → Templates`.
+- **2026-07-12** **Boarding & Kennel tab** (`/boarding`, all staff): `010_boarding.sql`
+  (`boarding_stays` + `boarding_pets`, RLS = any active staff read/write). Intake
+  form: owner/contact/email, check-in/out, paid/unpaid/partial + amount, items
+  brought (cage/food/toys/bags/other), multi-pet with hardcoded taxonomy
+  (`lib/pet-taxonomy.ts`: type → breed → color + description). List + check-out +
+  mark-paid.
 
 ## In progress / next
 
-- **Checklist templates**: auto-generate per department+shift, focused on
-  cleanliness / organization / stocking / premium-shop standards, tied to
-  sections. Goal: Boss-G only picks/edits/adds. (see `lib/default-checklists.ts`)
-- **Boarding / Kennel tab** (for everyone): intake record — owner, contact,
-  start/end dates, paid/unpaid, # pets, items brought (cage/food/toys/bags),
-  pet type + breed + color. Pet taxonomy hardcoded. Needs a `boarding_*` table
-  (migration `010_*`), a nav tab, and an intake form.
+- **Assign departments to the 11 staff** (`Admin → Employees`) so checklists
+  generate. Not done yet.
+- **Checklist "Can't complete + reason"**: add a staff action to mark a task not
+  done with a required reason (proposed; `task_status` has no blocked state — use
+  remarks + keep open, or add an enum value via migration).
 - **Accountability form** (later phase): on first portal open, staff accept
   responsibility for assigned areas + general policies before proceeding.
 
