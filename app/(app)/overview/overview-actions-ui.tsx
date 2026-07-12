@@ -2,8 +2,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { verifyTask } from "../verify/actions";
-import { addFollowup } from "./actions";
-import { CheckCheck, NotebookPen } from "lucide-react";
+import { addFollowup, toggleDelivery } from "./actions";
+import { CheckCheck, NotebookPen, Truck } from "lucide-react";
 
 export function InlineVerify({ taskId }: { taskId: string }) {
   const [pending, start] = useTransition();
@@ -71,5 +71,27 @@ export function FollowupButton({ departmentId, departmentName, profileId, profil
         </div>
       )}
     </>
+  );
+}
+
+export function DeliveryToggle({ profileId, isOut }: { profileId: string; isOut: boolean }) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  return (
+    <button
+      className={`${isOut ? "btn-primary" : "btn-secondary"} !px-2 !py-1 !text-xs`}
+      disabled={pending}
+      title={isOut ? "Mark returned from delivery" : "Mark out for delivery"}
+      onClick={(e) => {
+        e.preventDefault();
+        start(async () => {
+          const r = await toggleDelivery(profileId, isOut);
+          if (r?.error) alert(r.error);
+          router.refresh();
+        });
+      }}
+    >
+      <Truck size={13} /> {pending ? "Saving..." : isOut ? "On Delivery" : "Send Delivery"}
+    </button>
   );
 }

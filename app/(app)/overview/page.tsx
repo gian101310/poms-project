@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, StatCard, Badge, EmptyState, Bar } from "@/components/ui";
-import { InlineVerify, FollowupButton } from "./overview-actions-ui";
+import { DeliveryToggle, InlineVerify, FollowupButton } from "./overview-actions-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const date = searchParams.date ?? todayStr();
+  const today = todayStr();
+  const leaveUntil = new Date(`${today}T00:00:00Z`);
+  leaveUntil.setUTCDate(leaveUntil.getUTCDate() + 20);
+  const leaveUntilStr = leaveUntil.toISOString().slice(0, 10);
 
-  const [instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes] = await Promise.all([
+  const [instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes] = await Promise.all([
     supabase.from("checklist_instances")
       .select(`id, profile_id, department_id, status,
         departments(id, name), shifts(name),
@@ -28,6 +32,24 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
       .select("id, profile_id, started_at, ended_at, duration_minutes, flagged, flag_reason, profiles(full_name, employee_code)")
       .eq("work_date", date)
       .order("started_at", { ascending: false }),
+    supabase.from("profiles")
+      .select("id, full_name, employee_code, role, store_id, stores(name), department_assignments(departments(name))")
+      .eq("status", "active")
+      .in("role", ["staff", "supervisor"])
+      .order("full_name"),
+    supabase.from("employee_schedules")
+      .select("profile_id, status, shifts(name, start_time, end_time)")
+      .eq("work_date", date),
+    supabase.from("leave_requests")
+      .select("id, profile_id, leave_type, date_from, date_to, status, profiles(full_name, employee_code)")
+      .eq("status", "approved")
+      .lte("date_from", leaveUntilStr)
+      .gte("date_to", today)
+      .order("date_from"),
+    supabase.from("staff_delivery_runs")
+      .select("id, profile_id, started_at, ended_at")
+      .eq("work_date", date)
+      .order("started_at", { ascending: false }),
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -42,8 +64,20 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const onTime = allTasks.filter((t: any) => ["completed", "verified"].includes(t.status) && !t.is_overdue).length;
   const cashReports = (cashRes.data ?? []) as any[];
   const breakSessions = (breakRes.data ?? []) as any[];
+  const activeBreakMap = new Map(breakSessions.filter((b: any) => !b.ended_at).map((b: any) => [b.profile_id, b]));
+  const staffProfiles = (profilesRes.data ?? []) as any[];
+  const schedules = (schedulesRes.data ?? []) as any[];
+  const scheduleMap = new Map(schedules.map((s: any) => [s.profile_id, s]));
+  const approvedLeaves = (leaveRes.data ?? []) as any[];
+  const currentLeaveMap = new Map(approvedLeaves
+    .filter((l: any) => l.date_from <= date && l.date_to >= date)
+    .map((l: any) => [l.profile_id, l]));
+  const upcomingLeaves = approvedLeaves.filter((l: any) => l.date_from >= today && l.date_from <= leaveUntilStr);
+  const deliveryRows = deliveryRes.error ? [] : ((deliveryRes.data ?? []) as any[]);
+  const activeDeliveryMap = new Map(deliveryRows.filter((d: any) => !d.ended_at).map((d: any) => [d.profile_id, d]));
   const onBreak = breakSessions.filter((b: any) => !b.ended_at).length;
   const flaggedBreaks = breakSessions.filter((b: any) => b.flagged).length;
+  const outForDelivery = activeDeliveryMap.size;
   const cashTotals = cashReports.reduce((acc, r) => ({
     cash_sales: acc.cash_sales + Number(r.cash_sales ?? 0),
     card_sales: acc.card_sales + Number(r.card_sales ?? 0),
@@ -68,6 +102,44 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   }
 
   const pendingFollowups = (followRes.data ?? []) as any[];
+  const staffStats = staffProfiles.map((staff: any) => {
+    const staffInstances = instances.filter((i) => i.profile_id === staff.id);
+    const tasks = staffInstances.flatMap((i) => i.checklist_tasks ?? []);
+    const completed = tasks.filter((t: any) => ["completed", "verified"].includes(t.status)).length;
+    const unfinished = tasks.filter((t: any) => !["completed", "verified"].includes(t.status));
+    const pct = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+    const schedule = scheduleMap.get(staff.id) as any;
+    const shift = schedule?.shifts;
+    const shiftName = schedule?.status === "off" ? "Off" : schedule?.status === "leave" ? "Leave" : shift?.name ?? "No shift";
+    const shiftBucket = schedule?.status === "leave"
+      ? "leave"
+      : schedule?.status === "off"
+        ? "off"
+        : String(shift?.name ?? "").toLowerCase().includes("afternoon") || String(shift?.start_time ?? "") >= "12:00"
+          ? "afternoon"
+          : shift
+            ? "morning"
+            : "unscheduled";
+    return {
+      staff,
+      instances: staffInstances,
+      tasks,
+      completed,
+      unfinished,
+      pct,
+      attendance: attMap[staff.id],
+      schedule,
+      shift,
+      shiftName,
+      shiftBucket,
+      currentLeave: currentLeaveMap.get(staff.id),
+      activeBreak: activeBreakMap.get(staff.id),
+      activeDelivery: activeDeliveryMap.get(staff.id),
+    };
+  });
+  const absentStaff = staffStats.filter((s) => s.attendance?.status === "absent" || s.currentLeave || s.schedule?.status === "leave");
+  const morningStaff = staffStats.filter((s) => s.shiftBucket === "morning");
+  const afternoonStaff = staffStats.filter((s) => s.shiftBucket === "afternoon");
 
   return (
     <div>
@@ -91,6 +163,96 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="Incidents" value={incRes.count ?? 0} />
           <StatCard label="On Break" value={onBreak} />
           <StatCard label="Break Flags" value={flaggedBreaks} />
+          <StatCard label="Delivery Out" value={outForDelivery} />
+        </div>
+      </div>
+
+      <section className="mb-6">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Staff Live Board</h2>
+          {deliveryRes.error && <span className="text-xs text-amber-600">Run migration 015 to enable delivery status.</span>}
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {staffStats.map((s) => {
+            const attendanceStatus = s.currentLeave ? "on_leave" : s.attendance?.status;
+            return (
+              <div key={s.staff.id} className="card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{s.staff.full_name}</p>
+                    <p className="text-xs text-slate-400">
+                      {s.staff.employee_code} · {s.staff.stores?.name ?? "Branch"} · {s.shiftName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {(s.staff.department_assignments ?? []).map((a: any) => a.departments?.name).filter(Boolean).join(", ") || "No department"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {attendanceStatus && <Badge value={attendanceStatus} />}
+                    {s.activeBreak && <Badge value="on break" />}
+                    {s.activeDelivery && <Badge value="delivery" />}
+                    <DeliveryToggle profileId={s.staff.id} isOut={Boolean(s.activeDelivery)} />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="mb-1 flex justify-between text-xs text-slate-500">
+                    <span>Progress</span>
+                    <span>{s.completed}/{s.tasks.length} done · {s.unfinished.length} unfinished</span>
+                  </div>
+                  <Bar pct={s.pct} color={s.pct >= 80 ? "bg-green-500" : s.pct >= 50 ? "bg-amber-500" : "bg-red-500"} />
+                </div>
+                {s.unfinished.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {s.unfinished.slice(0, 4).map((t: any) => (
+                      <span key={t.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {t.blocked ? "Can't complete: " : ""}{t.title}
+                      </span>
+                    ))}
+                    {s.unfinished.length > 4 && <span className="text-xs text-slate-400">+{s.unfinished.length - 4} more</span>}
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                  {s.activeBreak && <span>Break since {fmtTime(s.activeBreak.started_at)}</span>}
+                  {s.activeDelivery && <span>Delivery since {fmtTime(s.activeDelivery.started_at)}</span>}
+                  {s.currentLeave && <span>Leave: {s.currentLeave.date_from} to {s.currentLeave.date_to}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="mb-6 grid gap-3 lg:grid-cols-3">
+        <div className="card p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Absent / On Leave Today</p>
+          {absentStaff.length ? absentStaff.map((s) => (
+            <div key={s.staff.id} className="flex items-center justify-between gap-2 py-1 text-sm">
+              <span>{s.staff.full_name}</span>
+              <Badge value={s.currentLeave || s.schedule?.status === "leave" ? "on_leave" : "absent"} />
+            </div>
+          )) : <p className="text-sm text-slate-400">None</p>}
+        </div>
+        <div className="card p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Upcoming Leave - Next 20 Days</p>
+          {upcomingLeaves.length ? upcomingLeaves.slice(0, 8).map((l: any) => (
+            <div key={l.id} className="py-1 text-sm">
+              <span className="font-medium">{l.profiles?.full_name}</span>
+              <span className="text-slate-400"> · {l.date_from} to {l.date_to}</span>
+            </div>
+          )) : <p className="text-sm text-slate-400">No approved leave coming up</p>}
+        </div>
+        <div className="card p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Shift Split</p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="font-medium">Morning</p>
+              <p className="text-xs text-slate-400">{morningStaff.map((s) => s.staff.full_name).join(", ") || "None"}</p>
+            </div>
+            <div>
+              <p className="font-medium">Afternoon</p>
+              <p className="text-xs text-slate-400">{afternoonStaff.map((s) => s.staff.full_name).join(", ") || "None"}</p>
+            </div>
+          </div>
         </div>
       </div>
 
