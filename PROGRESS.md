@@ -84,6 +84,13 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
   `login_sessions` cookie, a new successful QR/geofence login closes older open
   sessions for that employee, and `/account` lets logged-in staff change their
   own password after confirming the current password.
+- **2026-07-12** Multi-branch/admin UX pass: added Branches admin screen,
+  branch dropdown on employees, section assignment UI, close buttons on employee
+  and department/section modals, sticky Command Center summary, and configurable
+  `portal_name` branding. Live data now has Springs Souk, Meadows Village,
+  Discovery Garden, and Festival Plaza branches plus the named branch staff.
+  `012_branches_sections_branding.sql` must be applied in Supabase SQL editor to
+  enable saving exact staff-section assignments.
 
 ## In progress / next
 
@@ -98,6 +105,7 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 
 - `app/(app)/` — authenticated pages (staff + admin). `admin/` = super-admin only.
 - `app/(app)/account/` — logged-in self-service password change.
+- `app/(app)/admin/branches/` — branch/store management; new branches clone active departments, sections, and shifts.
 - `app/(app)/admin/departments/` — dept + section management (page/actions/forms).
 - `app/(app)/admin/employees/` — employee CRUD + leave (forms) → `app/api/admin/employees/route.ts`.
 - `app/(app)/cashier/` — cashier cash report form/history; totals shown on `/overview`.

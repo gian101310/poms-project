@@ -6,6 +6,7 @@ import { SettingRow } from "./setting-forms";
 export const dynamic = "force-dynamic";
 
 const DESCRIPTIONS: Record<string, string> = {
+  portal_name: 'Name shown in the app shell/login, e.g. "Pet World Ops"',
   qr_login_mode: 'Daily shop QR gate for staff login: "off" · "flag" (allow but mark) · "block" (must scan today\'s QR)',
   qr_secret: "Secret behind the rotating QR — change it to instantly invalidate all codes",
   geofence_mode: 'Location security for login + clock: "off" · "flag" (allow but mark) · "block" (refuse away from shop)',

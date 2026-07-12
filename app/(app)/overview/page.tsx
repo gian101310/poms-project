@@ -64,23 +64,25 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
 
   return (
     <div>
-      <PageHeader title="Command Center" subtitle={`Every department, every employee — ${date}`}
-        action={
-          <form className="flex gap-2">
-            <input type="date" name="date" defaultValue={date} className="input !w-auto" />
-            <button className="btn-secondary">Go</button>
-          </form>
-        } />
+      <div className="sticky top-[57px] z-20 -mx-4 mb-6 border-b border-slate-200 bg-slate-50/95 px-4 pb-3 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 md:-mx-6 md:px-6">
+        <PageHeader title="Command Center" subtitle={`Every department, every employee — ${date}`}
+          action={
+            <form className="flex gap-2">
+              <input type="date" name="date" defaultValue={date} className="input !w-auto" />
+              <button className="btn-secondary">Go</button>
+            </form>
+          } />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
-        <StatCard label="Completion" value={`${kpi.completion}%`} hint={`${done}/${allTasks.length} tasks`} />
-        <StatCard label="On-Time" value={`${kpi.onTimePct}%`} />
-        <StatCard label="Verified" value={`${kpi.verifiedPct}%`} hint="of completed" />
-        <StatCard label="Overdue" value={overdue} />
-        <StatCard label="Blocked" value={blocked} />
-        <StatCard label="Present / Late" value={`${attendance.filter((a: any) => a.status === "present").length} / ${attendance.filter((a: any) => a.status === "late").length}`} />
-        <StatCard label="Absent" value={attendance.filter((a: any) => a.status === "absent").length} />
-        <StatCard label="Incidents" value={incRes.count ?? 0} />
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-8">
+          <StatCard label="Completion" value={`${kpi.completion}%`} hint={`${done}/${allTasks.length} tasks`} />
+          <StatCard label="On-Time" value={`${kpi.onTimePct}%`} />
+          <StatCard label="Verified" value={`${kpi.verifiedPct}%`} hint="of completed" />
+          <StatCard label="Overdue" value={overdue} />
+          <StatCard label="Blocked" value={blocked} />
+          <StatCard label="Present / Late" value={`${attendance.filter((a: any) => a.status === "present").length} / ${attendance.filter((a: any) => a.status === "late").length}`} />
+          <StatCard label="Absent" value={attendance.filter((a: any) => a.status === "absent").length} />
+          <StatCard label="Incidents" value={incRes.count ?? 0} />
+        </div>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">

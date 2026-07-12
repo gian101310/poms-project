@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
       const { error: profErr } = await admin.from("profiles").insert({
         id: created.user.id,
-        store_id: profile.store_id,
+        store_id: body.store_id || profile.store_id,
         employee_code: code,
         full_name: body.full_name,
         role: body.role ?? "staff",
@@ -64,12 +64,23 @@ export async function POST(req: Request) {
       }));
       if (assignments.length) await admin.from("department_assignments").insert(assignments);
 
+      const sectionIds: string[] = body.section_ids ?? [];
+      if (sectionIds.length) {
+        const { error: sectionError } = await admin.from("staff_section_assignments").insert(sectionIds.map((sectionId, index) => ({
+          profile_id: created.user!.id,
+          section_id: sectionId,
+          is_primary: index === 0,
+        })));
+        if (sectionError) return NextResponse.json({ error: sectionError.message }, { status: 400 });
+      }
+
       return NextResponse.json({ ok: true, id: created.user.id });
     }
 
     if (body.action === "update") {
       const { error } = await admin.from("profiles").update({
         full_name: body.full_name,
+        store_id: body.store_id,
         role: body.role,
         position_id: body.position_id || null,
         phone: body.phone || null,
@@ -89,6 +100,18 @@ export async function POST(req: Request) {
           is_primary_supervisor: supIds.includes(d),
         }));
         if (assignments.length) await admin.from("department_assignments").insert(assignments);
+      }
+      if (Array.isArray(body.section_ids)) {
+        await admin.from("staff_section_assignments").delete().eq("profile_id", body.profile_id);
+        const assignments = body.section_ids.map((sectionId: string, index: number) => ({
+          profile_id: body.profile_id,
+          section_id: sectionId,
+          is_primary: index === 0,
+        }));
+        if (assignments.length) {
+          const { error: sectionError } = await admin.from("staff_section_assignments").insert(assignments);
+          if (sectionError) return NextResponse.json({ error: sectionError.message }, { status: 400 });
+        }
       }
       return NextResponse.json({ ok: true });
     }

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, KeyRound, Power, Pencil, CalendarOff, Copy, RefreshCw } from "lucide-react";
+import { UserPlus, KeyRound, Power, Pencil, CalendarOff, Copy, RefreshCw, X } from "lucide-react";
 
 function Modal({ title, open, onClose, children }: any) {
   if (!open) return null;
@@ -9,7 +9,10 @@ function Modal({ title, open, onClose, children }: any) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="card relative max-h-[85vh] w-full max-w-lg overflow-y-auto p-5">
-        <h3 className="mb-4 text-lg font-semibold">{title}</h3>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button className="btn-secondary !px-2 !py-1" type="button" onClick={onClose}><X size={16} /></button>
+        </div>
         {children}
       </div>
     </div>
@@ -62,7 +65,50 @@ function PasswordReveal({ employee, password, onClose }: { employee: string; pas
   );
 }
 
-export function EmployeeForm({ departments, positions }: { departments: any[]; positions: any[] }) {
+function SectionsPicker({
+  sections,
+  selected,
+}: {
+  sections: any[];
+  selected?: string[];
+}) {
+  const byDept = new Map<string, { name: string; items: any[] }>();
+  for (const s of sections) {
+    const dept = s.departments;
+    const key = dept?.id ?? s.department_id;
+    const entry = byDept.get(key) ?? { name: dept?.name ?? "Other", items: [] };
+    entry.items.push(s);
+    byDept.set(key, entry);
+  }
+
+  return (
+    <div>
+      <label className="label">Assigned sections</label>
+      <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+        {Array.from(byDept.values()).map((group) => (
+          <div key={group.name}>
+            <p className="mb-1 text-xs font-semibold text-slate-400">{group.name}</p>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+              {group.items.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="section_ids" value={s.id} defaultChecked={selected?.includes(s.id)} />
+                  {s.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-slate-400">Pick the exact aisle/section this staff member owns. Two or three staff can share the same section.</p>
+    </div>
+  );
+}
+
+export function EmployeeForm({
+  departments, positions, branches, sections,
+}: {
+  departments: any[]; positions: any[]; branches: any[]; sections: any[];
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState(generatePassword());
@@ -80,6 +126,7 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
         employee_code: String(fd.get("employee_code")).trim().toUpperCase(),
         full_name: String(fd.get("full_name")),
         password,
+        store_id: String(fd.get("store_id")),
         role: String(fd.get("role")),
         position_id: (fd.get("position_id") as string) || null,
         phone: (fd.get("phone") as string) || null,
@@ -112,6 +159,12 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Employee ID *</label><input name="employee_code" className="input" placeholder="EMP0001" required /></div>
             <div><label className="label">Full Name *</label><input name="full_name" className="input" required /></div>
+            <div>
+              <label className="label">Branch *</label>
+              <select name="store_id" className="input" required>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="label">Password *</label>
               <div className="flex gap-1">
@@ -152,6 +205,7 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
               ))}
             </div>
           </div>
+          <SectionsPicker sections={sections} />
           <div>
             <label className="label">Supervisor of (if role is supervisor)</label>
             <div className="grid grid-cols-2 gap-1">
@@ -178,12 +232,17 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
   );
 }
 
-export function EditEmployee({ employee, departments, positions }: { employee: any; departments: any[]; positions: any[] }) {
+export function EditEmployee({
+  employee, departments, positions, branches, sections,
+}: {
+  employee: any; departments: any[]; positions: any[]; branches: any[]; sections: any[];
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   const myDepts = (employee.department_assignments ?? []).map((a: any) => a.department_id);
   const mySup = (employee.department_assignments ?? []).filter((a: any) => a.is_primary_supervisor).map((a: any) => a.department_id);
+  const mySections = (employee.staff_section_assignments ?? []).map((a: any) => a.section_id);
   const ec = employee.emergency_contact ?? {};
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -195,6 +254,7 @@ export function EditEmployee({ employee, departments, positions }: { employee: a
         action: "update",
         profile_id: employee.id,
         full_name: String(fd.get("full_name")),
+        store_id: String(fd.get("store_id")),
         role: String(fd.get("role")),
         position_id: (fd.get("position_id") as string) || null,
         phone: (fd.get("phone") as string) || null,
@@ -206,6 +266,7 @@ export function EditEmployee({ employee, departments, positions }: { employee: a
           phone: (fd.get("ec_phone") as string) || "",
         },
         department_ids: fd.getAll("department_ids").map(String),
+        section_ids: fd.getAll("section_ids").map(String),
         is_supervisor_of: fd.getAll("supervisor_of").map(String),
       });
       setOpen(false);
@@ -223,6 +284,12 @@ export function EditEmployee({ employee, departments, positions }: { employee: a
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Employee ID</label><input className="input" value={employee.employee_code} disabled /></div>
             <div><label className="label">Full Name *</label><input name="full_name" className="input" defaultValue={employee.full_name} required /></div>
+            <div>
+              <label className="label">Branch *</label>
+              <select name="store_id" className="input" defaultValue={employee.store_id} required>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
             <div>
               <label className="label">Role *</label>
               <select name="role" className="input" defaultValue={employee.role}>
@@ -253,6 +320,7 @@ export function EditEmployee({ employee, departments, positions }: { employee: a
               ))}
             </div>
           </div>
+          <SectionsPicker sections={sections} selected={mySections} />
           <div>
             <label className="label">Supervisor of</label>
             <div className="grid grid-cols-2 gap-1">

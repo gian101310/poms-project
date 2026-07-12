@@ -5,13 +5,18 @@ import {
   createDepartment, updateDepartment, toggleDepartment,
   createSection, updateSection, toggleSection, deleteSection,
 } from "./actions";
-import { Plus, Power, Pencil, Trash2 } from "lucide-react";
+import { Plus, Power, Pencil, Trash2, X } from "lucide-react";
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="card relative w-full max-w-sm space-y-3 p-5">{children}</div>
+      <div className="card relative w-full max-w-sm space-y-3 p-5">
+        <button className="btn-secondary absolute right-3 top-3 !px-2 !py-1" type="button" onClick={onClose}>
+          <X size={16} />
+        </button>
+        <div className="pt-6">{children}</div>
+      </div>
     </div>
   );
 }

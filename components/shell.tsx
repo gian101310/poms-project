@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   LayoutDashboard, ClipboardCheck, CheckCheck, ArrowLeftRight, HeartPulse,
   AlertTriangle, FileText, Search as SearchIcon, ClipboardList, CalendarClock,
-  Users, Building2, Clock3, ListChecks, Bell, Moon, Sun, LogOut,
+  Users, Building2, Clock3, ListChecks, Bell, Moon, Sun, LogOut, Store,
   PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings, QrCode, Send,
   WalletCards, UserCog,
 } from "lucide-react";
@@ -45,6 +45,7 @@ const managerExtra: NavItem[] = [
 
 const adminExtra: NavItem[] = [
   { href: "/admin/employees", label: "Employees", icon: Users },
+  { href: "/admin/branches", label: "Branches", icon: Store },
   { href: "/admin/departments", label: "Departments", icon: Building2 },
   { href: "/admin/shifts", label: "Shifts & Schedules", icon: Clock3 },
   { href: "/admin/templates", label: "Checklist Templates", icon: ListChecks },
@@ -52,9 +53,9 @@ const adminExtra: NavItem[] = [
 ];
 
 export function Shell({
-  role, name, code, unread, children,
+  role, name, code, unread, portalName = "POMS", children,
 }: {
-  role: string; name: string; code: string; unread: number; children: React.ReactNode;
+  role: string; name: string; code: string; unread: number; portalName?: string; children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -112,7 +113,7 @@ export function Shell({
           <PawPrint size={20} />
         </div>
         <div>
-          <p className="text-sm font-bold leading-tight">POMS</p>
+          <p className="text-sm font-bold leading-tight">{portalName}</p>
           <p className="text-[10px] uppercase tracking-wider text-slate-400">Pet Store Ops</p>
         </div>
       </div>
