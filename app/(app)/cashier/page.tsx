@@ -1,0 +1,75 @@
+import { requireProfile, isManagerUp } from "@/lib/session";
+import { createClient } from "@/lib/supabase/server";
+import { todayStr, fmtTime } from "@/lib/tz";
+import { PageHeader, Badge, EmptyState, StatCard, Table } from "@/components/ui";
+import { CashierForm } from "./cashier-form";
+
+export const dynamic = "force-dynamic";
+
+const money = (value: number | null | undefined) =>
+  `AED ${Number(value ?? 0).toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export default async function CashierPage({ searchParams }: { searchParams: { date?: string } }) {
+  const profile = await requireProfile();
+  const supabase = createClient();
+  const date = searchParams.date ?? todayStr();
+
+  const { data: reports } = await supabase
+    .from("cash_reports")
+    .select("*, profiles!cash_reports_submitted_by_fkey(full_name, employee_code)")
+    .eq("report_date", date)
+    .order("created_at", { ascending: false });
+
+  const rows = (reports ?? []) as any[];
+  const totals = rows.reduce((acc, r) => ({
+    cash_sales: acc.cash_sales + Number(r.cash_sales ?? 0),
+    card_sales: acc.card_sales + Number(r.card_sales ?? 0),
+    tips: acc.tips + Number(r.tips ?? 0),
+    expenses: acc.expenses + Number(r.expenses ?? 0),
+  }), { cash_sales: 0, card_sales: 0, tips: 0, expenses: 0 });
+
+  return (
+    <div>
+      <PageHeader title="Cashier Cash Report" subtitle="Opening, shift-change, and closing money log."
+        action={
+          <form className="flex gap-2">
+            <input type="date" name="date" defaultValue={date} className="input !w-auto" />
+            <button className="btn-secondary">Go</button>
+          </form>
+        } />
+
+      <CashierForm today={date} />
+
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Cash Drop" value={money(totals.cash_sales)} />
+        <StatCard label="Card Sales" value={money(totals.card_sales)} />
+        <StatCard label="Tips" value={money(totals.tips)} />
+        <StatCard label="Expenses" value={money(totals.expenses)} />
+      </div>
+
+      {rows.length === 0 ? (
+        <EmptyState message={`No cash reports for ${date}.`} />
+      ) : (
+        <Table headers={["Time", "Phase", "Submitted By", "Float", "Cash", "Card", "Tips", "Expenses", "Notes"]}>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td className="td">{fmtTime(r.created_at)}</td>
+              <td className="td"><Badge value={r.phase} /></td>
+              <td className="td">
+                {isManagerUp(profile.role)
+                  ? `${r.profiles?.full_name ?? "Unknown"} (${r.profiles?.employee_code ?? "—"})`
+                  : "Me"}
+              </td>
+              <td className="td">{money(r.phase === "opening" ? r.opening_float : r.closing_float)}</td>
+              <td className="td">{money(r.cash_sales)}</td>
+              <td className="td">{money(r.card_sales)}</td>
+              <td className="td">{money(r.tips)}</td>
+              <td className="td">{money(r.expenses)}</td>
+              <td className="td max-w-[220px] truncate">{r.expense_notes || r.notes || "—"}</td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </div>
+  );
+}

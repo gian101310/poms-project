@@ -23,8 +23,28 @@ export async function completeTask(taskId: string) {
   if (task?.requires_photo && (task.task_photos ?? []).length === 0) {
     return { error: "This task requires a photo before completion." };
   }
-  const { error } = await supabase.from("checklist_tasks").update({ status: "completed" }).eq("id", taskId);
+  const { error } = await supabase.from("checklist_tasks")
+    .update({ status: "completed", blocked: false, blocked_reason: null })
+    .eq("id", taskId);
   revalidatePath("/checklist");
+  return error ? { error: error.message } : { ok: true };
+}
+
+export async function blockTask(taskId: string, reason: string) {
+  await requireProfile();
+  const cleanReason = reason.trim();
+  if (cleanReason.length < 3) return { error: "Add a short reason before marking this task." };
+
+  const supabase = createClient();
+  const { error } = await supabase.from("checklist_tasks")
+    .update({
+      blocked: true,
+      blocked_reason: cleanReason,
+      employee_remarks: cleanReason,
+    })
+    .eq("id", taskId);
+  revalidatePath("/checklist");
+  revalidatePath("/overview");
   return error ? { error: error.message } : { ok: true };
 }
 

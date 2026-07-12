@@ -73,14 +73,18 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
   brought (cage/food/toys/bags/other), multi-pet with hardcoded taxonomy
   (`lib/pet-taxonomy.ts`: type → breed → color + description). List + check-out +
   mark-paid.
+- **2026-07-12** Checklist **"Can't complete"** action live on staff task cards:
+  requires a short reason, keeps the task open, writes `blocked` +
+  `blocked_reason`, clears when the task is completed, and surfaces blocked
+  counts/reasons in Command Center.
+- **2026-07-12** **Cashier Cash Report** (`/cashier`, all active staff): opening /
+  shift-change / closing form for float, cash drop, card sales, tips, expenses,
+  and notes. Daily totals now surface on Command Center for managers/owners/admins.
 
 ## In progress / next
 
 - **Assign departments to the 11 staff** (`Admin → Employees`) so checklists
   generate. Not done yet.
-- **Checklist "Can't complete + reason"**: add a staff action to mark a task not
-  done with a required reason (proposed; `task_status` has no blocked state — use
-  remarks + keep open, or add an enum value via migration).
 - **Accountability form** (later phase): on first portal open, staff accept
   responsibility for assigned areas + general policies before proceeding.
 
@@ -91,6 +95,7 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 - `app/(app)/` — authenticated pages (staff + admin). `admin/` = super-admin only.
 - `app/(app)/admin/departments/` — dept + section management (page/actions/forms).
 - `app/(app)/admin/employees/` — employee CRUD + leave (forms) → `app/api/admin/employees/route.ts`.
+- `app/(app)/cashier/` — cashier cash report form/history; totals shown on `/overview`.
 - `app/api/cron/{generate,overdue,attendance,eod}/route.ts` — scheduled jobs.
 - `lib/supabase/{server,admin}.ts` — RLS client vs service-role client.
 - `lib/{cron,tz,session,default-checklists}.ts` — helpers.

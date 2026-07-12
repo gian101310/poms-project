@@ -2,13 +2,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { startTask, completeTask, saveRemarks } from "./actions";
+import { startTask, completeTask, saveRemarks, blockTask } from "./actions";
 import { Badge } from "@/components/ui";
-import { Play, Check, Camera, ChevronDown, ChevronUp, AlertCircle, Clock } from "lucide-react";
+import { Play, Check, Camera, ChevronDown, ChevronUp, AlertCircle, Clock, Ban } from "lucide-react";
 
 export function TaskCard({ task }: { task: any }) {
   const [open, setOpen] = useState(false);
   const [remarks, setRemarks] = useState(task.employee_remarks ?? "");
+  const [blockedReason, setBlockedReason] = useState(task.blocked_reason ?? "");
+  const [blocking, setBlocking] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -43,7 +45,7 @@ export function TaskCard({ task }: { task: any }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium">{task.title}</p>
-            <Badge value={task.status} />
+            <Badge value={task.blocked ? "blocked" : task.status} />
             {task.priority !== "normal" && <Badge value={task.priority} />}
             {task.template_tasks?.estimated_minutes && (
               <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock size={11} /> ~{task.template_tasks.estimated_minutes}m</span>
@@ -53,6 +55,11 @@ export function TaskCard({ task }: { task: any }) {
             )}
           </div>
           {task.description && <p className="mt-0.5 text-sm text-slate-500">{task.description}</p>}
+          {task.blocked && task.blocked_reason && (
+            <p className="mt-1 rounded-md bg-red-50 px-2 py-1 text-sm font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              Can't complete: {task.blocked_reason}
+            </p>
+          )}
           {(task.tags ?? []).length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {task.tags.map((tag: string) => (
@@ -72,6 +79,12 @@ export function TaskCard({ task }: { task: any }) {
               <Check size={14} /> Done
             </button>
           )}
+          {["pending", "started"].includes(task.status) && !task.blocked && (
+            <button className="btn-secondary !py-1.5 text-red-600 dark:text-red-300" disabled={pending}
+              onClick={() => { setBlocking(true); setOpen(true); }}>
+              <Ban size={14} /> Can't complete
+            </button>
+          )}
           <button className="btn-secondary !px-2 !py-1.5" onClick={() => setOpen(!open)}>
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -80,6 +93,21 @@ export function TaskCard({ task }: { task: any }) {
 
       {open && (
         <div className="mt-3 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+          {blocking && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
+              <label className="label">Reason this can't be completed *</label>
+              <textarea className="input" rows={2} value={blockedReason}
+                onChange={(e) => setBlockedReason(e.target.value)}
+                placeholder="Example: delivery not received, item out of stock, cage occupied..." />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button className="btn-primary !py-1" disabled={pending}
+                  onClick={() => act(() => blockTask(task.id, blockedReason))}>
+                  <Ban size={14} /> Flag for supervisor
+                </button>
+                <button className="btn-secondary !py-1" onClick={() => setBlocking(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
           <div>
             <label className="label">My Remarks</label>
             <textarea className="input" rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />

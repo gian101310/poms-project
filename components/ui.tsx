@@ -17,6 +17,7 @@ const badgeColors: Record<string, string> = {
   started: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
   completed: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
   verified: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
+  blocked: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
   open: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
   investigating: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
   resolved: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
@@ -39,6 +40,9 @@ const badgeColors: Record<string, string> = {
   critical: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
   normal: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
   low: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+  opening: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
+  shift_change: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+  closing: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
 };
 
 export function Badge({ value }: { value: string }) {
