@@ -88,6 +88,25 @@ export const DEFAULT_CHECKLISTS: Record<string, DefaultTask[]> = {
     { title: "Process due refunds/exchanges", tags: ["customer_concern"] },
     { title: "End-of-shift till count & reconciliation", priority: "critical", tags: ["equipment"] },
   ],
+  PHARMA: [
+    { title: "Check expiry dates; pull expired medication", priority: "critical", tags: ["low_stock"] },
+    { title: "Secure prescription / controlled items", priority: "critical", tags: ["equipment"] },
+    { title: "Verify storage temperature for sensitive meds", priority: "high", tags: ["equipment"] },
+    { title: "Face & front shelves; fill gaps; correct price labels", priority: "high", tags: ["low_stock"] },
+    { title: "Restock OTC / supplements from stockroom", priority: "high", tags: ["low_stock"] },
+    { title: "Dust shelves; wipe counter & glass", tags: ["cleaning"] },
+    { title: "Log any dispensed prescriptions", tags: [] },
+  ],
+  KENNEL: [
+    { title: "Welfare check on every boarder", priority: "critical", tags: ["animal_health"] },
+    { title: "Feed boarders per owner instructions", priority: "critical", tags: ["animal_health"] },
+    { title: "Administer scheduled medications", priority: "critical", tags: ["animal_health"], requires_photo: true },
+    { title: "Exercise / play-time rotation", priority: "high", tags: ["animal_health"] },
+    { title: "Clean kennels & replace bedding", priority: "high", tags: ["cleaning"] },
+    { title: "Disinfect floors, drains & surfaces", priority: "high", tags: ["cleaning"] },
+    { title: "Update owners with photo/message where promised", tags: ["customer_concern"] },
+    { title: "Check today's arrivals & departures", tags: ["customer_concern"] },
+  ],
 };
 
 export const GENERIC_CHECKLIST: DefaultTask[] = [
