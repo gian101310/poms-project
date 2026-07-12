@@ -54,6 +54,7 @@ export async function POST(req: Request) {
 
   const allowed = geo.allowed && qrAllowed;
   const flagged = geo.flag || qrFlag;
+  const now = new Date().toISOString();
 
   if (body.session_id) {
     await admin.from("login_sessions").update({
@@ -61,8 +62,18 @@ export async function POST(req: Request) {
       longitude: coords?.lng ?? null,
       geo_distance_m: geo.distance,
       flagged,
-      ...(allowed ? {} : { logout_at: new Date().toISOString(), closed_by: "system" }),
+      ...(allowed ? {} : { logout_at: now, closed_by: "system" }),
     }).eq("id", body.session_id).eq("profile_id", user.id);
+
+    if (allowed) {
+      await admin.from("login_sessions").update({
+        logout_at: now,
+        closed_by: "system",
+      })
+        .eq("profile_id", user.id)
+        .is("logout_at", null)
+        .neq("id", body.session_id);
+    }
   }
 
   if (!allowed) {

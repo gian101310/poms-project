@@ -8,7 +8,7 @@ import {
   AlertTriangle, FileText, Search as SearchIcon, ClipboardList, CalendarClock,
   Users, Building2, Clock3, ListChecks, Bell, Moon, Sun, LogOut,
   PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings, QrCode, Send,
-  WalletCards,
+  WalletCards, UserCog,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any };
@@ -25,6 +25,7 @@ const staffNav: NavItem[] = [
   { href: "/attendance", label: "My Attendance", icon: CalendarClock },
   { href: "/leave", label: "Leave", icon: CalendarDays },
   { href: "/performance", label: "My Performance", icon: BarChart3 },
+  { href: "/account", label: "My Account", icon: UserCog },
 ];
 
 const supervisorExtra: NavItem[] = [
@@ -92,6 +93,7 @@ export function Shell({
         }).eq("id", id);
       } catch { }
       localStorage.removeItem("poms_session_id");
+      document.cookie = "poms_session_id=; path=/; max-age=0; samesite=lax";
     }
     await supabase.auth.signOut();
     router.push("/login");

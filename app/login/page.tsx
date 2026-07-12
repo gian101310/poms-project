@@ -22,7 +22,11 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(
-    params.get("error") === "disabled" ? "Your account is disabled. Contact your manager." : null
+    params.get("error") === "disabled"
+      ? "Your account is disabled. Contact your manager."
+      : params.get("error") === "session"
+        ? "You were signed out because this Employee ID is active on another device."
+        : null
   );
   const [loading, setLoading] = useState(false);
 
@@ -39,22 +43,30 @@ function LoginForm() {
       return;
     }
 
-    // Record login session (append-only history)
+    // Record login session (append-only history). This is required because the
+    // server uses it to enforce one active device per Employee ID.
     let sessionId: string | null = null;
     try {
       const ua = navigator.userAgent;
       const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : "Other";
       const device = /Mobi|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
-      const { data: sess } = await supabase
+      const { data: sess, error: sessionError } = await supabase
         .from("login_sessions")
         .insert({ profile_id: data.user.id, device, browser })
         .select("id")
         .single();
+      if (sessionError) throw sessionError;
       if (sess) {
         sessionId = sess.id;
         localStorage.setItem("poms_session_id", sess.id);
+        document.cookie = `poms_session_id=${sess.id}; path=/; max-age=${60 * 60 * 18}; samesite=lax`;
       }
-    } catch { /* non-blocking */ }
+    } catch {
+      await supabase.auth.signOut();
+      setError("Could not start a secure device session. Try again or ask a manager.");
+      setLoading(false);
+      return;
+    }
 
     // Geofence check (server decides; exempt roles skip, "off" mode skips)
     try {
@@ -70,12 +82,21 @@ function LoginForm() {
       const verdict = await res.json();
       if (!verdict.allowed) {
         localStorage.removeItem("poms_session_id");
+        document.cookie = "poms_session_id=; path=/; max-age=0; samesite=lax";
         setError(verdict.reason ?? "Login is only allowed at the store.");
         setStatus(null);
         setLoading(false);
         return;
       }
-    } catch { /* geocheck unavailable → allow (fails open to avoid lockout) */ }
+    } catch {
+      await supabase.auth.signOut();
+      localStorage.removeItem("poms_session_id");
+      document.cookie = "poms_session_id=; path=/; max-age=0; samesite=lax";
+      setError("Could not verify shop QR/location. Try again inside the shop.");
+      setStatus(null);
+      setLoading(false);
+      return;
+    }
 
     router.push("/");
     router.refresh();

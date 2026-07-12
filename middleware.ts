@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/kiosk", "/api/setup", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/kiosk", "/api/setup", "/api/cron", "/api/auth/geocheck"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -34,7 +34,30 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (user && path === "/login") {
+
+  if (user && !isPublic) {
+    const sessionId = request.cookies.get("poms_session_id")?.value;
+    const validSession = sessionId
+      ? await supabase.from("login_sessions")
+        .select("id")
+        .eq("id", sessionId)
+        .eq("profile_id", user.id)
+        .is("logout_at", null)
+        .maybeSingle()
+      : { data: null, error: null };
+
+    if (!sessionId || validSession.error || !validSession.data) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "session");
+      const redirect = NextResponse.redirect(url);
+      redirect.cookies.delete("poms_session_id");
+      return redirect;
+    }
+  }
+
+  if (user && path === "/login" && request.cookies.get("poms_session_id")?.value) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

@@ -80,6 +80,10 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 - **2026-07-12** **Cashier Cash Report** (`/cashier`, all active staff): opening /
   shift-change / closing form for float, cash drop, card sales, tips, expenses,
   and notes. Daily totals now surface on Command Center for managers/owners/admins.
+- **2026-07-12** Staff login hardening: app access now requires the current
+  `login_sessions` cookie, a new successful QR/geofence login closes older open
+  sessions for that employee, and `/account` lets logged-in staff change their
+  own password after confirming the current password.
 
 ## In progress / next
 
@@ -93,6 +97,7 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 ## File map (where things live)
 
 - `app/(app)/` — authenticated pages (staff + admin). `admin/` = super-admin only.
+- `app/(app)/account/` — logged-in self-service password change.
 - `app/(app)/admin/departments/` — dept + section management (page/actions/forms).
 - `app/(app)/admin/employees/` — employee CRUD + leave (forms) → `app/api/admin/employees/route.ts`.
 - `app/(app)/cashier/` — cashier cash report form/history; totals shown on `/overview`.
