@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { submitCashReport } from "./actions";
 import { Save } from "lucide-react";
 
-export function CashierForm({ today }: { today: string }) {
+export function CashierForm({ today, staff }: { today: string; staff: any[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -42,7 +42,37 @@ export function CashierForm({ today }: { today: string }) {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div>
+          <label className="label">Turnover to</label>
+          <select name="turnover_to" className="input" defaultValue="">
+            <option value="">No handover</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Received correct amount?</label>
+          <select name="received_correct" className="input" defaultValue="">
+            <option value="">Not applicable</option>
+            <option value="yes">Yes, correct</option>
+            <option value="no">No, difference found</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Missing / over amount</label>
+          <input name="missing_amount" type="number" step="0.01" className="input" placeholder="AED, use - for over" />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div>
+          <label className="label">Expected cash</label>
+          <input name="expected_cash" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+        <div>
+          <label className="label">Counted cash</label>
+          <input name="counted_cash" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
         <div>
           <label className="label">Closing float</label>
           <input name="closing_float" type="number" min="0" step="0.01" className="input" placeholder="AED" />
@@ -65,7 +95,34 @@ export function CashierForm({ today }: { today: string }) {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div>
+          <label className="label">Expected card</label>
+          <input name="expected_card" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+        <div>
+          <label className="label">Actual card</label>
+          <input name="actual_card" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+        <div>
+          <label className="label">Card variance</label>
+          <input name="card_variance" type="number" step="0.01" className="input" placeholder="AED, use - if short" />
+        </div>
+        <div>
+          <label className="label">Card tips</label>
+          <input name="card_tip_amount" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+        <div>
+          <label className="label">Shop purchase</label>
+          <input name="shop_purchase_amount" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label className="label">Variance reason</label>
+          <textarea name="variance_reason" className="input" rows={2} placeholder="Example: customer paid tip by card, staff bought shop item, terminal batch mismatch..." />
+        </div>
         <div>
           <label className="label">Expense notes</label>
           <textarea name="expense_notes" className="input" rows={2} />

@@ -23,11 +23,16 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     .order("created_at", { ascending: false });
   if (selectedBranch) reportsQuery = reportsQuery.eq("store_id", selectedBranch);
   if (!isManagerUp(profile.role)) reportsQuery = reportsQuery.eq("store_id", profile.store_id);
-  const [{ data: reports }, { data: branches }] = await Promise.all([
+  const [{ data: reports }, { data: branches }, { data: staff }] = await Promise.all([
     reportsQuery,
     isManagerUp(profile.role)
       ? supabase.from("stores").select("id, name, code").eq("is_active", true).order("name")
       : Promise.resolve({ data: [] } as any),
+    supabase.from("profiles")
+      .select("id, full_name, employee_code")
+      .eq("status", "active")
+      .eq("store_id", selectedBranch ?? profile.store_id)
+      .order("full_name"),
   ]);
 
   const rows = (reports ?? []) as any[];
@@ -52,7 +57,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
             )
         } />
 
-      <CashierForm today={date} />
+      <CashierForm today={date} staff={staff ?? []} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Cash Drop" value={money(totals.cash_sales)} />
@@ -64,7 +69,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       {rows.length === 0 ? (
         <EmptyState message={`No cash reports for ${date}.`} />
       ) : (
-        <Table headers={["Time", "Phase", "Branch", "Submitted By", "Float", "Cash", "Card", "Tips", "Expenses", "Notes"]}>
+        <Table headers={["Time", "Phase", "Branch", "Submitted By", "Turnover", "Correct", "Float", "Cash", "Card", "Variance", "Reason"]}>
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="td">{fmtTime(r.created_at)}</td>
@@ -75,12 +80,24 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
                   ? `${r.profiles?.full_name ?? "Unknown"} (${r.profiles?.employee_code ?? "—"})`
                   : "Me"}
               </td>
+              <td className="td text-xs">{staff?.find((s: any) => s.id === r.turnover_to)?.full_name ?? "—"}</td>
+              <td className="td">{r.received_correct == null ? "—" : r.received_correct ? "Yes" : "No"}</td>
               <td className="td">{money(r.phase === "opening" ? r.opening_float : r.closing_float)}</td>
-              <td className="td">{money(r.cash_sales)}</td>
-              <td className="td">{money(r.card_sales)}</td>
-              <td className="td">{money(r.tips)}</td>
-              <td className="td">{money(r.expenses)}</td>
-              <td className="td max-w-[220px] truncate">{r.expense_notes || r.notes || "—"}</td>
+              <td className="td">
+                <p>{money(r.cash_sales)}</p>
+                {(r.expected_cash != null || r.counted_cash != null) && <p className="text-xs text-slate-400">Exp {money(r.expected_cash)} · Count {money(r.counted_cash)}</p>}
+              </td>
+              <td className="td">
+                <p>{money(r.card_sales)}</p>
+                {(r.expected_card != null || r.actual_card != null) && <p className="text-xs text-slate-400">Exp {money(r.expected_card)} · Actual {money(r.actual_card)}</p>}
+              </td>
+              <td className="td">
+                <p>{money(r.missing_amount)}</p>
+                {r.card_variance != null && <p className="text-xs text-slate-400">Card {money(r.card_variance)}</p>}
+                {r.card_tip_amount != null && <p className="text-xs text-slate-400">Tips card {money(r.card_tip_amount)}</p>}
+                {r.shop_purchase_amount != null && <p className="text-xs text-slate-400">Shop buy {money(r.shop_purchase_amount)}</p>}
+              </td>
+              <td className="td max-w-[260px] truncate">{r.variance_reason || r.expense_notes || r.notes || "—"}</td>
             </tr>
           ))}
         </Table>
