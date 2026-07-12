@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="POMS">
+  <rect width="512" height="512" rx="112" fill="#166534"/>
+  <circle cx="178" cy="188" r="44" fill="#f8fafc"/>
+  <circle cx="256" cy="150" r="44" fill="#f8fafc"/>
+  <circle cx="334" cy="188" r="44" fill="#f8fafc"/>
+  <circle cx="210" cy="276" r="46" fill="#f8fafc"/>
+  <circle cx="302" cy="276" r="46" fill="#f8fafc"/>
+  <path d="M256 242c-52 0-102 54-102 108 0 39 30 62 66 44 22-11 50-11 72 0 36 18 66-5 66-44 0-54-50-108-102-108z" fill="#f8fafc"/>
+  <path d="M256 70a186 186 0 1 0 0 372 186 186 0 0 0 0-372zm0 30a156 156 0 1 1 0 312 156 156 0 0 1 0-312z" fill="#dcfce7" opacity=".35"/>
+</svg>

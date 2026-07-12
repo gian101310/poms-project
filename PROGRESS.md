@@ -120,6 +120,10 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 - **2026-07-13** Desktop sidebar fixed while scrolling; mobile menu unchanged.
 - **2026-07-13** Added [`HANDOFF.md`](./HANDOFF.md) as the current Claude/agent
   starting point, and updated `CLAUDE.md` / `AGENTS.md` to point there first.
+- **2026-07-13** Prepared the web app for future Android/iOS packaging:
+  installable manifest, mobile metadata, iOS web-app tags, placeholder app icons,
+  and [`MOBILE_APP_READINESS.md`](./MOBILE_APP_READINESS.md). Native wrapper is
+  not added yet.
 
 ## In progress / next
 
@@ -142,6 +146,7 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 - `app/(app)/break/` — QR/geofence break start/end flow.
 - `components/branch-filter.tsx` — auto-applying branch/date filter used on operational pages.
 - `HANDOFF.md` — current detailed project handoff for Claude/agents.
+- `MOBILE_APP_READINESS.md` — future Android/iOS packaging notes.
 - `app/api/cron/{generate,overdue,attendance,eod}/route.ts` — scheduled jobs.
 - `lib/supabase/{server,admin}.ts` — RLS client vs service-role client.
 - `lib/{cron,tz,session,default-checklists}.ts` — helpers.

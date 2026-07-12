@@ -273,6 +273,7 @@ Manager/super_admin are redirected away from staff-only paths such as
 
 - `components/shell.tsx` — app navigation, fixed sidebar, logout.
 - `components/branch-filter.tsx` — auto-applying branch/date dropdown.
+- `MOBILE_APP_READINESS.md` — Android/iOS future app readiness notes.
 - `components/ui.tsx` — shared UI atoms.
 - `middleware.ts` — session requirement and staff/manager redirects.
 - `lib/session.ts` — profile and role helpers.
@@ -284,6 +285,20 @@ Manager/super_admin are redirected away from staff-only paths such as
 - `app/(app)/cashier/` — cashier workflow.
 - `app/(app)/break/` — break workflow.
 - `supabase/migrations/` — all schema changes.
+
+## Mobile App Readiness
+
+The app is still a Next.js web app, but mobile/PWA groundwork has been added:
+
+- `app/layout.tsx` has mobile metadata, iOS web-app settings, manifest link,
+  viewport fit, and theme colors.
+- `app/manifest.ts` defines the installable app manifest.
+- `public/icons/poms-icon.svg` and `public/icons/poms-maskable.svg` are
+  placeholder app icons.
+- `MOBILE_APP_READINESS.md` explains the future Android/iOS path.
+
+Do not add Capacitor/native dependencies until the user explicitly asks to start
+the iOS/Android app project.
 
 ## Current Known Next Work
 
