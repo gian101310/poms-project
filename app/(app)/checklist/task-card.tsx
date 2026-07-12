@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { startTask, completeTask, saveRemarks } from "./actions";
 import { Badge } from "@/components/ui";
-import { Play, Check, Camera, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { Play, Check, Camera, ChevronDown, ChevronUp, AlertCircle, Clock } from "lucide-react";
 
 export function TaskCard({ task }: { task: any }) {
   const [open, setOpen] = useState(false);
@@ -45,6 +45,9 @@ export function TaskCard({ task }: { task: any }) {
             <p className="font-medium">{task.title}</p>
             <Badge value={task.status} />
             {task.priority !== "normal" && <Badge value={task.priority} />}
+            {task.template_tasks?.estimated_minutes && (
+              <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock size={11} /> ~{task.template_tasks.estimated_minutes}m</span>
+            )}
             {task.is_overdue && !["completed", "verified"].includes(task.status) && (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600"><AlertCircle size={12} /> overdue</span>
             )}
