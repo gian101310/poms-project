@@ -12,20 +12,45 @@ export default async function DepartmentsPage() {
   await requireRole(["super_admin"]);
   const supabase = createClient();
   const { data: departments } = await supabase.from("departments")
-    .select("*, sections(*), department_assignments(profile_id, is_primary_supervisor, profiles(full_name))")
+    .select("*, stores(id, name, code), sections(*), department_assignments(profile_id, is_primary_supervisor, profiles(full_name))")
     .eq("is_active", true)
     .order("name");
+  const { data: stores } = await supabase.from("stores")
+    .select("id, name, code")
+    .eq("is_active", true)
+    .order("created_at");
+
+  const byStore = new Map<string, { store: any; departments: any[] }>();
+  for (const store of stores ?? []) byStore.set(store.id, { store, departments: [] });
+  for (const dept of departments ?? []) {
+    const storeId = dept.store_id;
+    const entry = byStore.get(storeId) ?? {
+      store: dept.stores ?? { id: storeId, name: "Unknown branch", code: "" },
+      departments: [],
+    };
+    entry.departments.push(dept);
+    byStore.set(storeId, entry);
+  }
 
   return (
     <div>
       <PageHeader
         title="Departments & Sections"
-        subtitle="Add, rename, activate, or remove departments and the sections inside them."
-        action={<DeptForm />}
+        subtitle="Departments are grouped by branch so branch copies do not look like duplicates."
+        action={<DeptForm stores={stores ?? []} />}
       />
 
-      <div className="space-y-4">
-        {(departments ?? []).map((d: any) => {
+      <div className="space-y-6">
+        {Array.from(byStore.values()).map(({ store, departments: storeDepartments }) => (
+          <section key={store.id} className="space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 dark:border-slate-800">
+              <div>
+                <h2 className="text-base font-semibold">{store.name}</h2>
+                <p className="font-mono text-xs text-slate-400">{store.code}</p>
+              </div>
+              <Badge value={`${storeDepartments.length} departments`} />
+            </div>
+            {storeDepartments.map((d: any) => {
           const sups = (d.department_assignments ?? []).filter((a: any) => a.is_primary_supervisor);
           const sections = (d.sections ?? []).sort(
             (a: any, b: any) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)
@@ -37,6 +62,7 @@ export default async function DepartmentsPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-base font-semibold">{d.name}</span>
                   <span className="font-mono text-xs text-slate-400">{d.code}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">{d.stores?.name}</span>
                   <Badge value={d.is_active ? "active" : "suspended"} />
                 </div>
                 <div className="flex items-center gap-1">
@@ -68,7 +94,9 @@ export default async function DepartmentsPage() {
               )}
             </div>
           );
-        })}
+            })}
+          </section>
+        ))}
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const supabase = createClient();
   const date = searchParams.date ?? todayStr();
 
-  const [instRes, attRes, incRes, deptsRes, followRes, cashRes] = await Promise.all([
+  const [instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes] = await Promise.all([
     supabase.from("checklist_instances")
       .select(`id, profile_id, department_id, status,
         departments(id, name), shifts(name),
@@ -24,6 +24,10 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     supabase.from("followup_tasks").select("*, departments(name), profiles!followup_tasks_profile_id_fkey(full_name)")
       .is("consumed_at", null).order("target_date"),
     supabase.from("cash_reports").select("phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, created_at").eq("report_date", date),
+    supabase.from("break_sessions")
+      .select("id, profile_id, started_at, ended_at, duration_minutes, flagged, flag_reason, profiles(full_name, employee_code)")
+      .eq("work_date", date)
+      .order("started_at", { ascending: false }),
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -37,6 +41,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const blocked = allTasks.filter((t: any) => t.blocked).length;
   const onTime = allTasks.filter((t: any) => ["completed", "verified"].includes(t.status) && !t.is_overdue).length;
   const cashReports = (cashRes.data ?? []) as any[];
+  const breakSessions = (breakRes.data ?? []) as any[];
+  const onBreak = breakSessions.filter((b: any) => !b.ended_at).length;
+  const flaggedBreaks = breakSessions.filter((b: any) => b.flagged).length;
   const cashTotals = cashReports.reduce((acc, r) => ({
     cash_sales: acc.cash_sales + Number(r.cash_sales ?? 0),
     card_sales: acc.card_sales + Number(r.card_sales ?? 0),
@@ -82,6 +89,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="Present / Late" value={`${attendance.filter((a: any) => a.status === "present").length} / ${attendance.filter((a: any) => a.status === "late").length}`} />
           <StatCard label="Absent" value={attendance.filter((a: any) => a.status === "absent").length} />
           <StatCard label="Incidents" value={incRes.count ?? 0} />
+          <StatCard label="On Break" value={onBreak} />
+          <StatCard label="Break Flags" value={flaggedBreaks} />
         </div>
       </div>
 
@@ -103,6 +112,26 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {breakSessions.length > 0 && (
+        <div className="card mb-6 p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Break monitoring</p>
+          <div className="space-y-1 text-sm">
+            {breakSessions.slice(0, 8).map((b: any) => (
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  <span className="font-medium">{b.profiles?.full_name}</span>
+                  <span className="text-slate-400"> ({b.profiles?.employee_code})</span>
+                </span>
+                <span className={b.flagged ? "text-red-600" : !b.ended_at ? "text-amber-600" : "text-slate-500"}>
+                  {!b.ended_at ? "On break now" : `${b.duration_minutes ?? 0}m`}
+                  {b.flagged && b.flag_reason ? ` · ${b.flag_reason}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

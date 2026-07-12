@@ -97,6 +97,21 @@ export async function clockOut(coords: Coords = null) {
     }
 
     const now = new Date();
+    const { data: openBreak } = await admin.from("break_sessions")
+      .select("id, started_at, flagged, flag_reason")
+      .eq("profile_id", profile.id)
+      .is("ended_at", null)
+      .maybeSingle();
+    if (openBreak) {
+      const breakDuration = Math.max(0, Math.round((now.getTime() - new Date(openBreak.started_at).getTime()) / 60000));
+      await admin.from("break_sessions").update({
+        ended_at: now.toISOString(),
+        duration_minutes: breakDuration,
+        flagged: true,
+        flag_reason: [openBreak.flag_reason, "Auto-closed at clock-out."].filter(Boolean).join(" "),
+        updated_at: now.toISOString(),
+      }).eq("id", openBreak.id);
+    }
     const worked = Math.max(0, Math.round((now.getTime() - new Date(rec.clock_in).getTime()) / 60000));
     await admin.from("attendance_records").update({
       clock_out: now.toISOString(),

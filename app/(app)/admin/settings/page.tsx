@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const DESCRIPTIONS: Record<string, string> = {
   portal_name: 'Name shown in the app shell/login, e.g. "Pet World Ops"',
   qr_login_mode: 'Daily shop QR gate for staff login: "off" · "flag" (allow but mark) · "block" (must scan today\'s QR)',
+  qr_token_ttl_seconds: "How long each kiosk QR stays valid, in seconds. 30-60 is a good range.",
   qr_secret: "Secret behind the rotating QR — change it to instantly invalidate all codes",
   geofence_mode: 'Location security for login + clock: "off" · "flag" (allow but mark) · "block" (refuse away from shop)',
   store_lat: "Shop latitude — right-click your shop in Google Maps and copy the first number",
@@ -20,6 +21,7 @@ const DESCRIPTIONS: Record<string, string> = {
   memo_ack_deadline_hours: "Hours an employee has to acknowledge a memo",
   photo_max_mb: "Maximum photo upload size (MB)",
   session_inactivity_minutes: "Auto-logout after this many idle minutes",
+  break_allowed_minutes: "Allowed break length before it is flagged for review.",
   absent_cutoff_time: "Time of day when no-shows are marked absent",
   task_tags: "Available task tags (JSON array)",
 };

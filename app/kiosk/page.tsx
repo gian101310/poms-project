@@ -1,13 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadQrSettings, qrToken } from "@/lib/qr";
-import { todayStr } from "@/lib/tz";
-import QRCode from "qrcode";
+import { KioskClient } from "./kiosk-client";
 
 export const dynamic = "force-dynamic";
 
 // PUBLIC kiosk display — no login session. Protected by ?key=<kiosk_key>.
-// Leave this open fullscreen on the shop POS/tablet; it reloads itself
-// every 10 minutes so the QR rotates at midnight automatically.
+// Leave this open fullscreen on the shop POS/tablet; it refreshes the QR
+// every few seconds and switches to break mode after 1pm Dubai time.
 
 export default async function KioskPage({ searchParams }: { searchParams: { key?: string } }) {
   const admin = createAdminClient();
@@ -31,20 +29,5 @@ export default async function KioskPage({ searchParams }: { searchParams: { key?
     );
   }
 
-  const qr = await loadQrSettings(admin);
-  const today = todayStr();
-  const token = qrToken(qr.secret, today);
-  const url = `https://poms-chi.vercel.app/login?qr=${token}`;
-  const dataUrl = await QRCode.toDataURL(url, { width: 640, margin: 2 });
-
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
-      {/* auto-reload every 10 minutes so the code rotates at midnight */}
-      <meta httpEquiv="refresh" content="600" />
-      <h1 className="text-2xl font-bold">Scan to Log In</h1>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={dataUrl} alt="Daily login QR" className="w-full max-w-md rounded-2xl bg-white p-3 shadow-lg" />
-      <p className="text-sm text-slate-500">Point your phone camera at the code · Valid for {today}</p>
-    </div>
-  );
+  return <KioskClient kioskKey={kioskKey} />;
 }

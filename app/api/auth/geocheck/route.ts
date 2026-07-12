@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadGeoSettings, evaluateGeofence } from "@/lib/geo";
-import { loadQrSettings, validQrToken } from "@/lib/qr";
+import { loadQrSettings } from "@/lib/qr";
+import { consumeQrToken } from "@/lib/one-time-qr";
 
 // Login gate — runs right after password sign-in. Combines:
 //  1. Geofence (GPS distance from the shop)
@@ -40,12 +41,12 @@ export async function POST(req: Request) {
   let qrFlag = false;
   let qrReason: string | undefined;
   const qr = await loadQrSettings(admin);
-  if (qr.mode !== "off" && !exempt && qr.secret) {
-    const ok = validQrToken(qr.secret, body.qr);
-    if (!ok) {
+  if (qr.mode !== "off" && !exempt) {
+    const check = await consumeQrToken(admin, body.qr, "login", user.id);
+    if (!check.ok) {
       if (qr.mode === "block") {
         qrAllowed = false;
-        qrReason = "Please scan today's shop QR code to log in.";
+        qrReason = check.reason;
       } else {
         qrFlag = true;
       }

@@ -49,7 +49,7 @@ export function EditDept({ dept }: { dept: any }) {
   );
 }
 
-export function DeptForm() {
+export function DeptForm({ stores }: { stores: any[] }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -65,6 +65,14 @@ export function DeptForm() {
               router.refresh();
             })}>
             <h3 className="text-lg font-semibold">New Department</h3>
+            <div>
+              <label className="label">Branch *</label>
+              <select name="store_id" className="input" required>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>{store.name}</option>
+                ))}
+              </select>
+            </div>
             <div><label className="label">Name *</label><input name="name" className="input" required /></div>
             <div><label className="label">Code *</label><input name="code" className="input" placeholder="REPTILES" required /></div>
             <button className="btn-primary w-full" disabled={pending}>{pending ? "Creating…" : "Create"}</button>

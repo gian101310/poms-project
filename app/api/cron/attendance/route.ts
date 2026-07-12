@@ -105,5 +105,20 @@ export async function GET(req: Request) {
     summary.sessionsClosed++;
   }
 
+  const { data: openBreaks } = await admin.from("break_sessions")
+    .select("id, started_at, flag_reason")
+    .is("ended_at", null)
+    .lt("started_at", cutoff);
+  for (const b of openBreaks ?? []) {
+    const duration = Math.max(0, Math.round((new Date(cutoff).getTime() - new Date(b.started_at).getTime()) / 60000));
+    await admin.from("break_sessions").update({
+      ended_at: cutoff,
+      duration_minutes: duration,
+      flagged: true,
+      flag_reason: [b.flag_reason, "Auto-closed as stale open break."].filter(Boolean).join(" "),
+      updated_at: new Date().toISOString(),
+    }).eq("id", b.id);
+  }
+
   return NextResponse.json(summary);
 }

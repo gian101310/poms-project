@@ -7,8 +7,9 @@ import { revalidatePath } from "next/cache";
 export async function createDepartment(fd: FormData) {
   const profile = await requireRole(["super_admin"]);
   const supabase = createClient();
+  const storeId = String(fd.get("store_id") ?? profile.store_id);
   const { error } = await supabase.from("departments").insert({
-    store_id: profile.store_id,
+    store_id: storeId || profile.store_id,
     name: String(fd.get("name")),
     code: String(fd.get("code")).trim().toUpperCase(),
   });

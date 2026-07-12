@@ -21,6 +21,17 @@ export default async function AttendancePage() {
   const { data: records } = isSupervisorUp(profile.role)
     ? await query.limit(300)
     : await query.eq("profile_id", profile.id);
+  const { data: breaks } = isSupervisorUp(profile.role)
+    ? await supabase.from("break_sessions").select("profile_id, work_date, duration_minutes, flagged").gte("work_date", since).limit(1000)
+    : await supabase.from("break_sessions").select("profile_id, work_date, duration_minutes, flagged").eq("profile_id", profile.id).gte("work_date", since);
+  const breakMap = new Map<string, { total: number; flagged: number }>();
+  for (const b of breaks ?? []) {
+    const key = `${b.profile_id}:${b.work_date}`;
+    const entry = breakMap.get(key) ?? { total: 0, flagged: 0 };
+    entry.total += b.duration_minutes ?? 0;
+    entry.flagged += b.flagged ? 1 : 0;
+    breakMap.set(key, entry);
+  }
 
   const mine = (records ?? []).filter((r: any) => r.profile_id === profile.id);
 
@@ -57,28 +68,32 @@ export default async function AttendancePage() {
         <EmptyState message="No attendance records yet." />
       ) : (
         <Table headers={isSupervisorUp(profile.role)
-          ? ["Date", "Employee", "Shift", "In", "Out", "Worked", "Late", "OT", "Status", ""]
-          : ["Date", "Shift", "In", "Out", "Worked", "Late", "OT", "Status", ""]}>
-          {records.map((r: any) => (
-            <tr key={r.id} className="table-row">
-              <td className="td">{fmtDate(r.work_date)}</td>
-              {isSupervisorUp(profile.role) && <td className="td">{r.profiles?.full_name}</td>}
-              <td className="td text-xs">{r.shift_snapshot?.name ?? "—"}</td>
-              <td className="td">{r.clock_in ? fmtTime(r.clock_in) : "—"}</td>
-              <td className="td">{r.clock_out ? fmtTime(r.clock_out) : "—"}</td>
-              <td className="td font-medium">{r.worked_minutes ? hm(r.worked_minutes) : "—"}</td>
-              <td className="td">{r.late_minutes ? `${r.late_minutes}m` : "—"}</td>
-              <td className="td">{r.overtime_minutes ? `${r.overtime_minutes}m` : "—"}</td>
-              <td className="td"><Badge value={r.status} /></td>
-              <td className="td">
-                {r.flagged && (
-                  <span title={`Clocked from outside store network (${r.clock_in_ip ?? "?"})`}>
-                    <AlertTriangle size={14} className="text-amber-500" />
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
+          ? ["Date", "Employee", "Shift", "In", "Out", "Worked", "Break", "Late", "OT", "Status", ""]
+          : ["Date", "Shift", "In", "Out", "Worked", "Break", "Late", "OT", "Status", ""]}>
+          {records.map((r: any) => {
+            const br = breakMap.get(`${r.profile_id}:${r.work_date}`);
+            return (
+              <tr key={r.id} className="table-row">
+                <td className="td">{fmtDate(r.work_date)}</td>
+                {isSupervisorUp(profile.role) && <td className="td">{r.profiles?.full_name}</td>}
+                <td className="td text-xs">{r.shift_snapshot?.name ?? "—"}</td>
+                <td className="td">{r.clock_in ? fmtTime(r.clock_in) : "—"}</td>
+                <td className="td">{r.clock_out ? fmtTime(r.clock_out) : "—"}</td>
+                <td className="td font-medium">{r.worked_minutes ? hm(r.worked_minutes) : "—"}</td>
+                <td className="td">{br?.total ? `${br.total}m${br.flagged ? " ⚠" : ""}` : "—"}</td>
+                <td className="td">{r.late_minutes ? `${r.late_minutes}m` : "—"}</td>
+                <td className="td">{r.overtime_minutes ? `${r.overtime_minutes}m` : "—"}</td>
+                <td className="td"><Badge value={r.status} /></td>
+                <td className="td">
+                  {r.flagged && (
+                    <span title={`Clocked from outside store network (${r.clock_in_ip ?? "?"})`}>
+                      <AlertTriangle size={14} className="text-amber-500" />
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </Table>
       )}
     </div>
