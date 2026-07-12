@@ -91,6 +91,10 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
   Discovery Garden, and Festival Plaza branches plus the named branch staff.
   `012_branches_sections_branding.sql` must be applied in Supabase SQL editor to
   enable saving exact staff-section assignments.
+- **2026-07-12** Cleaned live department/section data: active branches now have
+  one clean set of parent departments with rebuilt retail sections; Warehouse
+  and Cashier have no sections. Animal/boarding choices now include expanded
+  Birds, Small Animals, Reptiles, Fish/Aquatics, and Insect/Feeder lists.
 
 ## In progress / next
 

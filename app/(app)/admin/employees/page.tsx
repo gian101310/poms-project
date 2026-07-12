@@ -13,6 +13,7 @@ export default async function EmployeesPage() {
   const [{ data: employees }, { data: departments }, { data: positions }, { data: branches }, { data: sections }, sectionAssignRes] = await Promise.all([
     supabase.from("profiles")
       .select("*, stores(id, name, code), positions(title), department_assignments(department_id, is_primary_supervisor, departments(name))")
+      .eq("status", "active")
       .order("created_at", { ascending: false }),
     supabase.from("departments").select("id, store_id, name").eq("is_active", true).order("name"),
     supabase.from("positions").select("id, title, level").eq("is_active", true).order("title"),

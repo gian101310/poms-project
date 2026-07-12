@@ -1,7 +1,7 @@
 // Hardcoded pet taxonomy for the Boarding intake form.
 // Staff only choose; add more here as needed.
 
-export const PET_TYPES = ["Dog", "Cat", "Bird", "Fish", "Reptile", "Small Animal"] as const;
+export const PET_TYPES = ["Dog", "Cat", "Bird", "Fish", "Reptile", "Small Animal", "Insect / Feeder"] as const;
 export type PetType = (typeof PET_TYPES)[number];
 
 export const BREEDS: Record<string, string[]> = {
@@ -15,20 +15,27 @@ export const BREEDS: Record<string, string[]> = {
     "Bengal", "Sphynx", "Turkish Angora", "Domestic Shorthair (DSH)", "Local / Mixed",
   ],
   Bird: [
-    "Budgerigar (Budgie)", "Cockatiel", "Lovebird", "African Grey", "Macaw", "Cockatoo",
-    "Conure", "Canary", "Finch", "Parakeet", "Dove / Pigeon", "Other",
+    "Budgerigar (Budgie)", "Cockatiel", "Finch", "Ringneck Parakeet", "African Grey",
+    "Parrot", "Lovebird", "Macaw", "Cockatoo", "Conure", "Canary", "Dove / Pigeon", "Other Bird",
   ],
   Fish: [
-    "Goldfish", "Betta", "Guppy", "Molly", "Tetra", "Angelfish", "Oscar", "Koi",
-    "Cichlid", "Arowana", "Other",
+    "Goldfish", "Betta", "Guppy", "Molly", "Platy", "Tetra", "Angelfish", "Oscar", "Koi",
+    "Cichlid", "Arowana", "Discus", "Gourami", "Corydoras", "Pleco", "Shrimp", "Snail",
+    "Axolotl", "Other Fish / Aquatic",
   ],
   Reptile: [
-    "Bearded Dragon", "Leopard Gecko", "Ball Python", "Corn Snake", "Iguana",
-    "Red-Eared Slider (Turtle)", "Tortoise", "Chameleon", "Other",
+    "Chameleon", "Leopard Gecko", "African Fat-Tailed Gecko", "Bearded Dragon",
+    "Water Turtle", "Sulcata Tortoise", "Greek Tortoise", "Red-Eared Slider", "Corn Snake",
+    "Ball Python", "King Snake", "Milk Snake", "Iguana", "Uromastyx", "Tarantula", "Scorpion",
+    "Other Reptile",
   ],
   "Small Animal": [
-    "Rabbit", "Guinea Pig", "Hamster", "Gerbil", "Mouse", "Rat", "Chinchilla",
-    "Ferret", "Hedgehog", "Sugar Glider", "Other",
+    "Hamster", "Guinea Pig", "Rabbit", "Sugar Glider", "Fancy Mouse", "Rat", "Degu",
+    "Gerbil", "Chinchilla", "Ferret", "Hedgehog", "Other Small Animal",
+  ],
+  "Insect / Feeder": [
+    "Dubia Roach", "Cricket", "Mealworm", "Superworm", "Red Runner Roach", "Waxworm",
+    "Fruit Fly", "Springtail", "Isopod", "Other Feeder Insect",
   ],
 };
 

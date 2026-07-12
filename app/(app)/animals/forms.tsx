@@ -2,7 +2,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createAnimal, addWelfareRecord, setAnimalStatus } from "./actions";
-import { Plus, HeartPulse } from "lucide-react";
+import { Plus, HeartPulse, X } from "lucide-react";
+import { PET_TYPES, breedsFor } from "@/lib/pet-taxonomy";
 
 function Modal({ title, open, onClose, children }: any) {
   if (!open) return null;
@@ -10,7 +11,10 @@ function Modal({ title, open, onClose, children }: any) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="card relative max-h-[85vh] w-full max-w-lg overflow-y-auto p-5">
-        <h3 className="mb-4 text-lg font-semibold">{title}</h3>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button type="button" className="btn-secondary !px-2 !py-1" onClick={onClose}><X size={16} /></button>
+        </div>
         {children}
       </div>
     </div>
@@ -19,6 +23,7 @@ function Modal({ title, open, onClose, children }: any) {
 
 export function AnimalForm({ departments, canAdd }: { departments: any[]; canAdd: boolean }) {
   const [open, setOpen] = useState(false);
+  const [species, setSpecies] = useState("Bird");
   const [pending, start] = useTransition();
   const router = useRouter();
   if (!canAdd) return null;
@@ -40,8 +45,19 @@ export function AnimalForm({ departments, canAdd }: { departments: any[]; canAdd
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
-            <div><label className="label">Species *</label><input name="species" className="input" required /></div>
-            <div><label className="label">Breed</label><input name="breed" className="input" /></div>
+            <div>
+              <label className="label">Species *</label>
+              <select name="species" className="input" value={species} onChange={(e) => setSpecies(e.target.value)} required>
+                {PET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Type / Breed</label>
+              <select name="breed" className="input">
+                <option value="">Choose...</option>
+                {breedsFor(species).map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
             <div><label className="label">Name</label><input name="name" className="input" /></div>
             <div><label className="label">Enclosure</label><input name="enclosure" className="input" /></div>
             <div><label className="label">Intake Date</label><input name="intake_date" type="date" className="input" /></div>

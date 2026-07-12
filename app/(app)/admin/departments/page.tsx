@@ -13,6 +13,7 @@ export default async function DepartmentsPage() {
   const supabase = createClient();
   const { data: departments } = await supabase.from("departments")
     .select("*, sections(*), department_assignments(profile_id, is_primary_supervisor, profiles(full_name))")
+    .eq("is_active", true)
     .order("name");
 
   return (
