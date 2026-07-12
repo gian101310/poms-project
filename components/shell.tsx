@@ -149,9 +149,9 @@ export function Shell({
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen">
       {/* desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:block">
         {sidebar}
       </aside>
       {/* mobile sidebar */}
@@ -161,7 +161,7 @@ export function Shell({
           <aside className="absolute left-0 top-0 h-full w-64 bg-white dark:bg-slate-900">{sidebar}</aside>
         </div>
       )}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col md:pl-60">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-2.5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
           <button className="btn-secondary !px-2 md:hidden" onClick={() => setOpen(true)}>
             <Menu size={18} />
