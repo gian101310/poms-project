@@ -58,9 +58,9 @@ const accountNav: NavItem[] = [
 ];
 
 export function Shell({
-  role, name, code, unread, portalName = "POMS", children,
+  role, name, code, unread, portalName = "POMS", branchName = "Branch", children,
 }: {
-  role: string; name: string; code: string; unread: number; portalName?: string; children: React.ReactNode;
+  role: string; name: string; code: string; unread: number; portalName?: string; branchName?: string; children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -145,7 +145,7 @@ export function Shell({
       </div>
       <div className="border-t border-slate-200 p-3 dark:border-slate-800">
         <p className="truncate text-sm font-semibold">{name}</p>
-        <p className="text-xs capitalize text-slate-400">{code} · {role.replace("_", " ")}</p>
+        <p className="truncate text-xs capitalize text-slate-400">{code} · {role.replace("_", " ")} · {branchName}</p>
       </div>
     </nav>
   );

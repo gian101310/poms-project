@@ -18,9 +18,11 @@ export type GeoSettings = {
   exemptRoles: string[];
 };
 
-export async function loadGeoSettings(db: any): Promise<GeoSettings> {
-  const { data } = await db.from("app_settings").select("key, value")
+export async function loadGeoSettings(db: any, storeId?: string): Promise<GeoSettings> {
+  let query = db.from("app_settings").select("store_id, key, value")
     .in("key", ["geofence_mode", "store_lat", "store_lng", "geofence_radius_m", "geo_exempt_roles"]);
+  if (storeId) query = query.eq("store_id", storeId);
+  const { data } = await query;
   const map: Record<string, any> = {};
   for (const row of data ?? []) map[row.key] = row.value;
   return {

@@ -10,7 +10,11 @@ export async function updateSetting(id: string, rawJson: string) {
     return { error: 'Value must be valid JSON — wrap text in quotes, e.g. "flag"' };
   }
   const supabase = createClient();
-  const { error } = await supabase.from("app_settings").update({ value }).eq("id", id);
+  const { data: setting } = await supabase.from("app_settings").select("key").eq("id", id).maybeSingle();
+  const query = supabase.from("app_settings").update({ value });
+  const { error } = setting?.key === "portal_name"
+    ? await query.eq("key", "portal_name")
+    : await query.eq("id", id);
   revalidatePath("/admin/settings");
   return error ? { error: error.message } : { ok: true };
 }

@@ -13,13 +13,13 @@ function clientIp(): string {
   return (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
 }
 
-async function ipCheck(admin: any): Promise<{ allowed: boolean; flag: boolean; ip: string }> {
+async function ipCheck(admin: any, storeId: string): Promise<{ allowed: boolean; flag: boolean; ip: string }> {
   const ip = clientIp();
-  const { data: modeRow } = await admin.from("app_settings").select("value").eq("key", "clock_ip_mode").limit(1).maybeSingle();
+  const { data: modeRow } = await admin.from("app_settings").select("value").eq("key", "clock_ip_mode").eq("store_id", storeId).limit(1).maybeSingle();
   const mode = typeof modeRow?.value === "string" ? modeRow.value : "off";
   if (mode === "off") return { allowed: true, flag: false, ip };
 
-  const { data: listRow } = await admin.from("app_settings").select("value").eq("key", "allowed_clock_ips").limit(1).maybeSingle();
+  const { data: listRow } = await admin.from("app_settings").select("value").eq("key", "allowed_clock_ips").eq("store_id", storeId).limit(1).maybeSingle();
   const raw = typeof listRow?.value === "string" ? listRow.value : "";
   const allow = raw.split(",").map((s: string) => s.trim()).filter(Boolean);
   const match = allow.length === 0 || allow.some((a: string) => ip === a || ip.startsWith(a));
@@ -33,10 +33,10 @@ export async function clockIn(coords: Coords = null) {
   const profile = await requireProfile();
   try {
     const admin = createAdminClient();
-    const check = await ipCheck(admin);
+    const check = await ipCheck(admin, profile.store_id);
     if (!check.allowed) return { error: "Clock-in is only allowed from the store network. Ask your manager if this is wrong." };
 
-    const geo = evaluateGeofence(await loadGeoSettings(admin), profile.role, coords);
+    const geo = evaluateGeofence(await loadGeoSettings(admin, profile.store_id), profile.role, coords);
     if (!geo.allowed) return { error: geo.reason ?? "Clock-in is only allowed at the store." };
     check.flag = check.flag || geo.flag;
 
@@ -76,8 +76,8 @@ export async function clockOut(coords: Coords = null) {
   const profile = await requireProfile();
   try {
     const admin = createAdminClient();
-    const check = await ipCheck(admin);
-    const geo = evaluateGeofence(await loadGeoSettings(admin), profile.role, coords);
+    const check = await ipCheck(admin, profile.store_id);
+    const geo = evaluateGeofence(await loadGeoSettings(admin, profile.store_id), profile.role, coords);
     if (!geo.allowed) return { error: geo.reason ?? "Clock-out is only allowed at the store." };
     check.flag = check.flag || geo.flag;
     const today = todayStr();

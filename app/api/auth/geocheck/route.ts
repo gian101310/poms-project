@@ -21,13 +21,13 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { }
 
   const admin = createAdminClient();
-  const { data: profile } = await admin.from("profiles").select("role, status").eq("id", user.id).single();
+  const { data: profile } = await admin.from("profiles").select("role, status, store_id").eq("id", user.id).single();
   if (!profile || profile.status !== "active") {
     await supabase.auth.signOut();
     return NextResponse.json({ allowed: false, reason: "Account disabled." });
   }
 
-  const geoSettings = await loadGeoSettings(admin);
+  const geoSettings = await loadGeoSettings(admin, profile.store_id);
   const exempt = geoSettings.exemptRoles.includes(profile.role);
 
   // 1. Geofence
@@ -40,13 +40,20 @@ export async function POST(req: Request) {
   let qrAllowed = true;
   let qrFlag = false;
   let qrReason: string | undefined;
-  const qr = await loadQrSettings(admin);
+  const qr = await loadQrSettings(admin, profile.store_id);
   if (qr.mode !== "off" && !exempt) {
     const check = await consumeQrToken(admin, body.qr, "login", user.id);
     if (!check.ok) {
       if (qr.mode === "block") {
         qrAllowed = false;
         qrReason = check.reason;
+      } else {
+        qrFlag = true;
+      }
+    } else if (check.storeId !== profile.store_id) {
+      if (qr.mode === "block") {
+        qrAllowed = false;
+        qrReason = "Scan the QR code from your assigned branch.";
       } else {
         qrFlag = true;
       }

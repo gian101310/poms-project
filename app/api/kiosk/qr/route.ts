@@ -8,16 +8,19 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
+  const storeId = url.searchParams.get("store");
   const admin = createAdminClient();
-  const { data: keyRow } = await admin.from("app_settings")
-    .select("value").eq("key", "kiosk_key").limit(1).maybeSingle();
+  let keyQuery = admin.from("app_settings").select("value, store_id").eq("key", "kiosk_key");
+  if (storeId) keyQuery = keyQuery.eq("store_id", storeId);
+  const { data: keyRow } = await keyQuery.limit(1).maybeSingle();
   const kioskKey = typeof keyRow?.value === "string" ? keyRow.value : null;
   if (!kioskKey || key !== kioskKey) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: store } = await admin.from("stores")
-    .select("id").eq("is_active", true).order("created_at").limit(1).single();
+  let storeQuery = admin.from("stores").select("id, name").eq("is_active", true);
+  storeQuery = keyRow?.store_id ? storeQuery.eq("id", keyRow.store_id) : storeQuery.order("created_at").limit(1);
+  const { data: store } = await storeQuery.single();
   if (!store) return NextResponse.json({ error: "No active store." }, { status: 400 });
 
   const purpose = currentKioskPurpose();
@@ -31,6 +34,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     purpose,
     label: purpose === "break" ? "Break Time QR" : "Login QR",
+    branchName: store.name,
     url: target,
     dataUrl,
     expiresAt: token.expires_at,

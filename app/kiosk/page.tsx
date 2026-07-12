@@ -7,10 +7,11 @@ export const dynamic = "force-dynamic";
 // Leave this open fullscreen on the shop POS/tablet; it refreshes the QR
 // every few seconds and switches to break mode after 1pm Dubai time.
 
-export default async function KioskPage({ searchParams }: { searchParams: { key?: string } }) {
+export default async function KioskPage({ searchParams }: { searchParams: { key?: string; store?: string } }) {
   const admin = createAdminClient();
-  const { data: keyRow } = await admin.from("app_settings")
-    .select("value").eq("key", "kiosk_key").limit(1).maybeSingle();
+  let keyQuery = admin.from("app_settings").select("value, store_id").eq("key", "kiosk_key");
+  if (searchParams.store) keyQuery = keyQuery.eq("store_id", searchParams.store);
+  const { data: keyRow } = await keyQuery.limit(1).maybeSingle();
   const kioskKey = typeof keyRow?.value === "string" ? keyRow.value : null;
 
   const authorized = !!kioskKey && searchParams.key === kioskKey;
@@ -29,5 +30,5 @@ export default async function KioskPage({ searchParams }: { searchParams: { key?
     );
   }
 
-  return <KioskClient kioskKey={kioskKey} />;
+  return <KioskClient kioskKey={kioskKey} storeId={keyRow?.store_id ?? searchParams.store} />;
 }

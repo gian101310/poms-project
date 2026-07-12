@@ -16,7 +16,7 @@ export default async function Dashboard() {
   const nextMonth = new Date(`${monthStart}T00:00:00Z`);
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
 
-  const [instancesRes, attendanceRes, notifRes, groomingTodayRes, groomingMonthRes] = await Promise.all([
+  const [instancesRes, attendanceRes, notifRes, groomingTodayRes, groomingMonthRes, storeRes] = await Promise.all([
     supabase.from("checklist_instances")
       .select("id, status, work_date, departments(name), shifts(name), checklist_tasks(id, status)")
       .eq("profile_id", profile.id).eq("work_date", today),
@@ -33,6 +33,7 @@ export default async function Dashboard() {
       .eq("status", "completed")
       .gte("booking_date", monthStart)
       .lt("booking_date", nextMonth.toISOString().slice(0, 10)),
+    supabase.from("stores").select("name").eq("id", profile.store_id).maybeSingle(),
   ]);
 
   const instances = instancesRes.data ?? [];
@@ -58,7 +59,7 @@ export default async function Dashboard() {
 
   return (
     <div>
-      <PageHeader title={`Welcome, ${profile.full_name.split(" ")[0]}`} subtitle={today} action={<ClockButtons clockedIn={!!attendance?.clock_in} clockedOut={!!attendance?.clock_out} />} />
+      <PageHeader title={`Welcome, ${profile.full_name.split(" ")[0]}`} subtitle={`${storeRes.data?.name ?? "Branch"} · ${today}`} action={<ClockButtons clockedIn={!!attendance?.clock_in} clockedOut={!!attendance?.clock_out} />} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Today's Tasks" value={`${done}/${allTasks.length}`} hint="completed" />

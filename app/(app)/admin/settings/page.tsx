@@ -29,13 +29,13 @@ const DESCRIPTIONS: Record<string, string> = {
 export default async function SettingsPage() {
   await requireRole(["super_admin"]);
   const supabase = createClient();
-  const { data: settings } = await supabase.from("app_settings").select("*").order("key");
+  const { data: settings } = await supabase.from("app_settings").select("*, stores(name)").order("key");
 
   return (
     <div>
       <PageHeader title="Company Settings"
         subtitle="Timings, security, and thresholds — everything configurable lives here. Values are JSON." />
-      <Table headers={["Setting", "Value", ""]}>
+      <Table headers={["Branch", "Setting", "Value", ""]}>
         {(settings ?? []).map((s: any) => (
           <SettingRow key={s.id} setting={s} description={DESCRIPTIONS[s.key]} />
         ))}

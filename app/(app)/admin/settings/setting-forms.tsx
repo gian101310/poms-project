@@ -12,6 +12,7 @@ export function SettingRow({ setting, description }: { setting: any; description
 
   return (
     <tr className="table-row">
+      <td className="td text-sm">{setting.stores?.name ?? "Global"}</td>
       <td className="td">
         <p className="font-mono text-xs font-semibold">{setting.key}</p>
         {description && <p className="mt-0.5 max-w-sm text-xs text-slate-400">{description}</p>}

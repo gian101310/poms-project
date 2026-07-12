@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 
 type QrState = {
   label: string;
+  branchName?: string;
   purpose: "login" | "break";
   dataUrl: string;
   expiresAt: string;
 };
 
-export function KioskClient({ kioskKey }: { kioskKey: string }) {
+export function KioskClient({ kioskKey, storeId }: { kioskKey: string; storeId?: string }) {
   const [qr, setQr] = useState<QrState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,7 +17,8 @@ export function KioskClient({ kioskKey }: { kioskKey: string }) {
     let cancelled = false;
     async function load() {
       try {
-        const res = await fetch(`/api/kiosk/qr?key=${encodeURIComponent(kioskKey)}`, { cache: "no-store" });
+        const storeParam = storeId ? `&store=${encodeURIComponent(storeId)}` : "";
+        const res = await fetch(`/api/kiosk/qr?key=${encodeURIComponent(kioskKey)}${storeParam}`, { cache: "no-store" });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Could not load QR.");
         if (!cancelled) {
@@ -33,13 +35,16 @@ export function KioskClient({ kioskKey }: { kioskKey: string }) {
       cancelled = true;
       clearInterval(iv);
     };
-  }, [kioskKey]);
+  }, [kioskKey, storeId]);
 
   const seconds = qr ? Math.max(0, Math.round((new Date(qr.expiresAt).getTime() - Date.now()) / 1000)) : 0;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-6 text-center">
-      <h1 className="text-3xl font-bold">{qr?.label ?? "Shop QR"}</h1>
+      <div>
+        <h1 className="text-3xl font-bold">{qr?.label ?? "Shop QR"}</h1>
+        {qr?.branchName && <p className="mt-1 text-sm font-medium text-slate-500">{qr.branchName}</p>}
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {qr ? (
         <>
