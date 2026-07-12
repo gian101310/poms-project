@@ -14,8 +14,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const leaveUntil = new Date(`${today}T00:00:00Z`);
   leaveUntil.setUTCDate(leaveUntil.getUTCDate() + 20);
   const leaveUntilStr = leaveUntil.toISOString().slice(0, 10);
+  const monthStart = `${date.slice(0, 7)}-01`;
+  const nextMonth = new Date(`${monthStart}T00:00:00Z`);
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
 
-  const [instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes] = await Promise.all([
+  const [instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes] = await Promise.all([
     supabase.from("checklist_instances")
       .select(`id, profile_id, department_id, status,
         departments(id, name), shifts(name),
@@ -50,6 +53,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
       .select("id, profile_id, started_at, ended_at")
       .eq("work_date", date)
       .order("started_at", { ascending: false }),
+    supabase.from("grooming_bookings")
+      .select("id, assigned_groomer_id, status, payment_status, profiles!grooming_bookings_assigned_groomer_id_fkey(full_name)")
+      .eq("booking_date", date),
+    supabase.from("grooming_bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "completed")
+      .gte("booking_date", monthStart)
+      .lt("booking_date", nextMonth.toISOString().slice(0, 10)),
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -74,6 +85,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     .map((l: any) => [l.profile_id, l]));
   const upcomingLeaves = approvedLeaves.filter((l: any) => l.date_from >= today && l.date_from <= leaveUntilStr);
   const deliveryRows = deliveryRes.error ? [] : ((deliveryRes.data ?? []) as any[]);
+  const groomingRows = groomingRes.error ? [] : ((groomingRes.data ?? []) as any[]);
+  const groomingBooked = groomingRows.length;
+  const groomingConfirmed = groomingRows.filter((g: any) => ["confirmed", "completed"].includes(g.status)).length;
+  const groomingCompleted = groomingRows.filter((g: any) => g.status === "completed").length;
+  const groomingPaid = groomingRows.filter((g: any) => g.payment_status === "paid").length;
   const activeDeliveryMap = new Map(deliveryRows.filter((d: any) => !d.ended_at).map((d: any) => [d.profile_id, d]));
   const onBreak = breakSessions.filter((b: any) => !b.ended_at).length;
   const flaggedBreaks = breakSessions.filter((b: any) => b.flagged).length;
@@ -164,6 +180,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="On Break" value={onBreak} />
           <StatCard label="Break Flags" value={flaggedBreaks} />
           <StatCard label="Delivery Out" value={outForDelivery} />
+          <StatCard label="Grooming" value={`${groomingCompleted}/${groomingBooked}`} hint={`${groomingConfirmed} confirmed`} />
         </div>
       </div>
 
@@ -255,6 +272,24 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       </div>
+
+      {!groomingRes.error && (
+        <div className="card mb-6 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Grooming summary</p>
+              <p className="mt-1 text-sm text-slate-500">Booked vs confirmed vs completed for {date}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+              <div><p className="font-semibold">{groomingBooked}</p><p className="text-xs text-slate-400">Booked</p></div>
+              <div><p className="font-semibold">{groomingConfirmed}</p><p className="text-xs text-slate-400">Confirmed</p></div>
+              <div><p className="font-semibold">{groomingCompleted}</p><p className="text-xs text-slate-400">Completed</p></div>
+              <div><p className="font-semibold">{groomingPaid}</p><p className="text-xs text-slate-400">Paid</p></div>
+              <div><p className="font-semibold">{groomingMonthRes.count ?? 0}</p><p className="text-xs text-slate-400">Month done</p></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Cash Drop" value={money(cashTotals.cash_sales)} hint={`${cashReports.length} report(s)`} />

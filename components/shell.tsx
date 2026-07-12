@@ -8,7 +8,7 @@ import {
   AlertTriangle, FileText, Search as SearchIcon, ClipboardList, CalendarClock,
   Users, Building2, Clock3, ListChecks, Bell, Moon, Sun, LogOut, Store,
   PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings, QrCode, Send,
-  WalletCards, UserCog,
+  WalletCards, UserCog, Scissors,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any };
@@ -19,6 +19,7 @@ const staffNav: NavItem[] = [
   { href: "/handover", label: "Shift Handover", icon: ArrowLeftRight },
   { href: "/animals", label: "Animal Welfare", icon: HeartPulse },
   { href: "/boarding", label: "Boarding & Kennel", icon: PawPrint },
+  { href: "/grooming", label: "Grooming", icon: Scissors },
   { href: "/cashier", label: "Cashier Report", icon: WalletCards },
   { href: "/incidents", label: "Incidents", icon: AlertTriangle },
   { href: "/memos", label: "Memos", icon: FileText },
@@ -37,6 +38,7 @@ const managerExtra: NavItem[] = [
   { href: "/broadcast", label: "Send Alert", icon: Send },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/reports", label: "Daily Reports", icon: FileText },
+  { href: "/grooming", label: "Grooming", icon: Scissors },
   { href: "/qr", label: "Shop QR", icon: QrCode },
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/audit", label: "Audit Trail", icon: History },
