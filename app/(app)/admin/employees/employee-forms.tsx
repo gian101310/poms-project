@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, KeyRound, Power, Pencil, CalendarOff } from "lucide-react";
+import { UserPlus, KeyRound, Power, Pencil, CalendarOff, Copy, RefreshCw } from "lucide-react";
 
 function Modal({ title, open, onClose, children }: any) {
   if (!open) return null;
@@ -27,9 +27,46 @@ async function api(body: any) {
   return json;
 }
 
+function generatePassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const symbols = "!@#$%";
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
+  const core = Array.from(bytes, (b) => chars[b % chars.length]).join("");
+  return `${core}${symbols[bytes[0] % symbols.length]}${(bytes[1] % 9) + 1}`;
+}
+
+function PasswordReveal({ employee, password, onClose }: { employee: string; password: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    await navigator.clipboard.writeText(password);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <Modal title="Temporary Password" open={!!password} onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">
+          Give this password to {employee}. It is shown only now. They can change it from My Account after logging in.
+        </p>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-xs uppercase tracking-wide text-slate-400">Password</p>
+          <p className="mt-1 break-all font-mono text-lg font-semibold">{password}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-primary" onClick={copy}><Copy size={16} /> {copied ? "Copied" : "Copy"}</button>
+          <button className="btn-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function EmployeeForm({ departments, positions }: { departments: any[]; positions: any[] }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState(generatePassword());
+  const [reveal, setReveal] = useState<{ employee: string; password: string } | null>(null);
   const router = useRouter();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -42,7 +79,7 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
         action: "create",
         employee_code: String(fd.get("employee_code")).trim().toUpperCase(),
         full_name: String(fd.get("full_name")),
-        password: String(fd.get("password")),
+        password,
         role: String(fd.get("role")),
         position_id: (fd.get("position_id") as string) || null,
         phone: (fd.get("phone") as string) || null,
@@ -56,7 +93,8 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
         department_ids: deptIds,
         is_supervisor_of: fd.getAll("supervisor_of").map(String),
       });
-      alert("Employee created. Give them their Employee ID and password.");
+      setReveal({ employee: String(fd.get("full_name")), password });
+      setPassword(generatePassword());
       setOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -74,7 +112,16 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Employee ID *</label><input name="employee_code" className="input" placeholder="EMP0001" required /></div>
             <div><label className="label">Full Name *</label><input name="full_name" className="input" required /></div>
-            <div><label className="label">Password *</label><input name="password" type="text" className="input" minLength={8} required /></div>
+            <div>
+              <label className="label">Password *</label>
+              <div className="flex gap-1">
+                <input name="password" type="text" className="input font-mono" minLength={8} value={password}
+                  onChange={(e) => setPassword(e.target.value)} required />
+                <button type="button" className="btn-secondary !px-2" title="Generate password" onClick={() => setPassword(generatePassword())}>
+                  <RefreshCw size={14} />
+                </button>
+              </div>
+            </div>
             <div>
               <label className="label">Role *</label>
               <select name="role" className="input">
@@ -126,6 +173,7 @@ export function EmployeeForm({ departments, positions }: { departments: any[]; p
           <button className="btn-primary w-full" disabled={busy}>{busy ? "Creating…" : "Create Employee"}</button>
         </form>
       </Modal>
+      {reveal && <PasswordReveal employee={reveal.employee} password={reveal.password} onClose={() => setReveal(null)} />}
     </>
   );
 }
@@ -233,6 +281,7 @@ export function EditEmployee({ employee, departments, positions }: { employee: a
 export function EmployeeRowActions({ employee, departments }: { employee: any; departments: any[] }) {
   const [busy, setBusy] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [reveal, setReveal] = useState<{ employee: string; password: string } | null>(null);
   const router = useRouter();
 
   async function setLeave(e: React.FormEvent<HTMLFormElement>) {
@@ -254,12 +303,12 @@ export function EmployeeRowActions({ employee, departments }: { employee: any; d
   }
 
   async function resetPassword() {
-    const pw = prompt(`New password for ${employee.full_name} (min 8 chars):`);
-    if (!pw || pw.length < 8) return;
+    const pw = generatePassword();
+    if (!confirm(`Generate a new temporary password for ${employee.full_name}? Their old password will stop working.`)) return;
     setBusy(true);
     try {
       await api({ action: "reset_password", profile_id: employee.id, password: pw });
-      alert("Password reset. Give it to the employee.");
+      setReveal({ employee: employee.full_name, password: pw });
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   }
 
@@ -309,6 +358,7 @@ export function EmployeeRowActions({ employee, departments }: { employee: any; d
           <button className="btn-primary w-full" disabled={busy}>{busy ? "Applying…" : "Apply"}</button>
         </form>
       </Modal>
+      {reveal && <PasswordReveal employee={reveal.employee} password={reveal.password} onClose={() => setReveal(null)} />}
     </div>
   );
 }
