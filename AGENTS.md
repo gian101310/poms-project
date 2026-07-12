@@ -1,7 +1,8 @@
 # AGENTS.md — start here
 
-**Read [`PROGRESS.md`](./PROGRESS.md) first** — the shared status + handoff doc
-(what's done, what's next, how to run it, gotchas). Update it when you finish work.
+**Read [`HANDOFF.md`](./HANDOFF.md) first** — the current operational handoff
+for this project. Read [`PROGRESS.md`](./PROGRESS.md) only if you need older
+history. Update the handoff when you finish work.
 
 Quick facts:
 - Next.js 14 (App Router) · TypeScript · Tailwind · Supabase · Vercel.

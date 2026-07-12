@@ -3,6 +3,8 @@
 > Read this first. It is the shared status doc for every agent working on POMS
 > (Claude on Mac, Claude on Windows, Codex, etc.). Keep it up to date: when you
 > finish something, move it from "In progress / next" to "Done" with a date.
+>
+> For the current operational handoff, read [`HANDOFF.md`](./HANDOFF.md) first.
 
 **What it is:** Pet Store Operations Management System — daily checklists,
 attendance, animal welfare, handovers, incidents, memos, inspections, audit trail.
@@ -95,6 +97,29 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
   one clean set of parent departments with rebuilt retail sections; Warehouse
   and Cashier have no sections. Animal/boarding choices now include expanded
   Birds, Small Animals, Reptiles, Fish/Aquatics, and Insect/Feeder lists.
+- **2026-07-13** One-time kiosk QR + break monitoring live: login QR before
+  1pm, break QR after 1pm, short-lived one-time tokens, active session/device
+  enforcement, break start/end with geofence, Command Center/Attendance break
+  visibility. Migration `013_one_time_qr_breaks.sql` applied.
+- **2026-07-13** Command Center upgraded into a staff live board: per-staff
+  progress bars, unfinished tasks, absent/on-leave, upcoming leave, shift split,
+  active break, delivery status toggle, grooming summary, and branch filter.
+  Migration `015_staff_delivery_runs.sql` applied.
+- **2026-07-13** Branch filters added and made auto-apply without a Go button:
+  Command Center, Analytics, Attendance, Grooming, Cashier, Daily Reports, and
+  Employees. Employees forms are branch-scoped when a branch is selected.
+- **2026-07-13** Grooming workflow live at `/grooming`: add daily bookings,
+  assign groomer, client phone/name, pet details, confirm call, mark grooming
+  done, mark finish call done or cannot-call with reason, paid/unpaid, and
+  groomer daily/month counters. Migration `016_grooming_bookings.sql` applied.
+- **2026-07-13** Cashier workflow expanded at `/cashier`: opening/shift-change/
+  closing reports now capture turnover to whom, received-correct status,
+  expected/count cash, missing/over amount, expected/actual card, card variance,
+  card tips, shop purchases, and variance reason. Migration
+  `017_cashier_handover_variance.sql` applied.
+- **2026-07-13** Desktop sidebar fixed while scrolling; mobile menu unchanged.
+- **2026-07-13** Added [`HANDOFF.md`](./HANDOFF.md) as the current Claude/agent
+  starting point, and updated `CLAUDE.md` / `AGENTS.md` to point there first.
 
 ## In progress / next
 
@@ -113,6 +138,10 @@ attendance, animal welfare, handovers, incidents, memos, inspections, audit trai
 - `app/(app)/admin/departments/` — dept + section management (page/actions/forms).
 - `app/(app)/admin/employees/` — employee CRUD + leave (forms) → `app/api/admin/employees/route.ts`.
 - `app/(app)/cashier/` — cashier cash report form/history; totals shown on `/overview`.
+- `app/(app)/grooming/` — grooming bookings, calls, completion, and payment status.
+- `app/(app)/break/` — QR/geofence break start/end flow.
+- `components/branch-filter.tsx` — auto-applying branch/date filter used on operational pages.
+- `HANDOFF.md` — current detailed project handoff for Claude/agents.
 - `app/api/cron/{generate,overdue,attendance,eod}/route.ts` — scheduled jobs.
 - `lib/supabase/{server,admin}.ts` — RLS client vs service-role client.
 - `lib/{cron,tz,session,default-checklists}.ts` — helpers.

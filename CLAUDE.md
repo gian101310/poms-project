@@ -1,7 +1,8 @@
 # CLAUDE.md — start here
 
-**Read [`PROGRESS.md`](./PROGRESS.md) first** — it's the shared, always-current
-status + handoff doc (what's done, what's next, how to run it, gotchas).
+**Read [`HANDOFF.md`](./HANDOFF.md) first** — it is the current operational
+handoff for this project. Read [`PROGRESS.md`](./PROGRESS.md) only if you need
+older history.
 
 Quick facts:
 - Next.js 14 (App Router) · TypeScript · Tailwind · Supabase · Vercel.
@@ -14,5 +15,5 @@ Quick facts:
   checklists for `status='scheduled'` schedule rows.
 - Before pushing: `npx tsc --noEmit` + `npx next build`. Push to `main` = deploy.
 
-When you finish a unit of work, update the "Done" / "In progress" sections in
-`PROGRESS.md`.
+When you finish a unit of work, update `HANDOFF.md` and, if it changes project
+history, also update `PROGRESS.md`.
