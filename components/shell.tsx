@@ -25,7 +25,6 @@ const staffNav: NavItem[] = [
   { href: "/attendance", label: "My Attendance", icon: CalendarClock },
   { href: "/leave", label: "Leave", icon: CalendarDays },
   { href: "/performance", label: "My Performance", icon: BarChart3 },
-  { href: "/account", label: "My Account", icon: UserCog },
 ];
 
 const supervisorExtra: NavItem[] = [
@@ -50,6 +49,10 @@ const adminExtra: NavItem[] = [
   { href: "/admin/shifts", label: "Shifts & Schedules", icon: Clock3 },
   { href: "/admin/templates", label: "Checklist Templates", icon: ListChecks },
   { href: "/admin/settings", label: "Settings", icon: Settings },
+];
+
+const accountNav: NavItem[] = [
+  { href: "/account", label: "My Account", icon: UserCog },
 ];
 
 export function Shell({
@@ -101,10 +104,16 @@ export function Shell({
     router.refresh();
   }
 
-  let nav = [...staffNav];
-  if (["supervisor", "manager", "super_admin"].includes(role)) nav = [...nav, ...supervisorExtra];
-  if (["manager", "super_admin"].includes(role)) nav = [...nav, ...managerExtra];
-  if (role === "super_admin") nav = [...nav, ...adminExtra];
+  let nav: NavItem[];
+  if (role === "super_admin") {
+    nav = [...managerExtra, ...adminExtra, ...accountNav];
+  } else if (role === "manager") {
+    nav = [...managerExtra, ...accountNav];
+  } else if (role === "supervisor") {
+    nav = [...staffNav, ...supervisorExtra, ...accountNav];
+  } else {
+    nav = [...staffNav, ...accountNav];
+  }
 
   const sidebar = (
     <nav className="flex h-full flex-col">

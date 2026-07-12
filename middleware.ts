@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/kiosk", "/api/setup", "/api/cron", "/api/auth/geocheck"];
+const STAFF_ONLY_PATHS = ["/dashboard", "/checklist", "/handover", "/cashier", "/attendance", "/performance"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -55,11 +56,27 @@ export async function middleware(request: NextRequest) {
       redirect.cookies.delete("poms_session_id");
       return redirect;
     }
+
+    const { data: profile } = await supabase.from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isStaffOnly = STAFF_ONLY_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+    if (isStaffOnly && ["manager", "super_admin"].includes(profile?.role)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/overview";
+      return NextResponse.redirect(url);
+    }
   }
 
   if (user && path === "/login" && request.cookies.get("poms_session_id")?.value) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    const { data: profile } = await supabase.from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    url.pathname = ["manager", "super_admin"].includes(profile?.role) ? "/overview" : "/dashboard";
     return NextResponse.redirect(url);
   }
   return response;
