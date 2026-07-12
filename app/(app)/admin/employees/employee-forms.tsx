@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, KeyRound, Power, Pencil } from "lucide-react";
+import { UserPlus, KeyRound, Power, Pencil, CalendarOff } from "lucide-react";
 
 function Modal({ title, open, onClose, children }: any) {
   if (!open) return null;
@@ -232,7 +232,26 @@ export function EditEmployee({ employee, departments, positions }: { employee: a
 
 export function EmployeeRowActions({ employee, departments }: { employee: any; departments: any[] }) {
   const [busy, setBusy] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const router = useRouter();
+
+  async function setLeave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const r = await api({
+        action: "set_leave",
+        profile_id: employee.id,
+        date_from: String(fd.get("date_from")),
+        date_to: String(fd.get("date_to") || fd.get("date_from")),
+        status: String(fd.get("status")),
+      });
+      alert(`${r.affected} rostered day(s) updated for ${employee.full_name}.`);
+      setLeaveOpen(false);
+      router.refresh();
+    } catch (err: any) { alert(err.message); } finally { setBusy(false); }
+  }
 
   async function resetPassword() {
     const pw = prompt(`New password for ${employee.full_name} (min 8 chars):`);
@@ -254,8 +273,13 @@ export function EmployeeRowActions({ employee, departments }: { employee: any; d
     } catch (e: any) { alert(e.message); } finally { setBusy(false); }
   }
 
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="flex gap-1">
+      <button className="btn-secondary !px-2 !py-1" title="Leave / off roster" disabled={busy} onClick={() => setLeaveOpen(true)}>
+        <CalendarOff size={13} />
+      </button>
       <button className="btn-secondary !px-2 !py-1" title="Reset password" disabled={busy} onClick={resetPassword}>
         <KeyRound size={13} />
       </button>
@@ -263,6 +287,28 @@ export function EmployeeRowActions({ employee, departments }: { employee: any; d
         title={employee.status === "active" ? "Disable account" : "Enable account"} disabled={busy} onClick={toggleStatus}>
         <Power size={13} />
       </button>
+
+      <Modal title={`Leave / roster — ${employee.full_name}`} open={leaveOpen} onClose={() => setLeaveOpen(false)}>
+        <form onSubmit={setLeave} className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Marks the chosen days as leave or off so they drop off the auto-generated roster.
+            Pick “Back on roster” to undo (restores scheduled days).
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">From *</label><input name="date_from" type="date" className="input" defaultValue={today} required /></div>
+            <div><label className="label">To</label><input name="date_to" type="date" className="input" defaultValue={today} /></div>
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select name="status" className="input" defaultValue="leave">
+              <option value="leave">On leave</option>
+              <option value="off">Day off</option>
+              <option value="scheduled">Back on roster</option>
+            </select>
+          </div>
+          <button className="btn-primary w-full" disabled={busy}>{busy ? "Applying…" : "Apply"}</button>
+        </form>
+      </Modal>
     </div>
   );
 }

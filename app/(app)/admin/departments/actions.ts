@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+// ---------- DEPARTMENTS ----------
 export async function createDepartment(fd: FormData) {
   const profile = await requireRole(["super_admin"]);
   const supabase = createClient();
@@ -30,6 +31,51 @@ export async function toggleDepartment(id: string, isActive: boolean) {
   await requireRole(["super_admin"]);
   const supabase = createClient();
   const { error } = await supabase.from("departments").update({ is_active: isActive }).eq("id", id);
+  revalidatePath("/admin/departments");
+  return error ? { error: error.message } : { ok: true };
+}
+
+// ---------- SECTIONS ----------
+export async function createSection(departmentId: string, fd: FormData) {
+  await requireRole(["super_admin"]);
+  const supabase = createClient();
+  const code = String(fd.get("code") ?? "").trim().toUpperCase();
+  const { error } = await supabase.from("sections").insert({
+    department_id: departmentId,
+    name: String(fd.get("name")).trim(),
+    code: code || null,
+    sort_order: Number(fd.get("sort_order") ?? 0) || 0,
+  });
+  revalidatePath("/admin/departments");
+  return error ? { error: error.message } : { ok: true };
+}
+
+export async function updateSection(id: string, fd: FormData) {
+  await requireRole(["super_admin"]);
+  const supabase = createClient();
+  const code = String(fd.get("code") ?? "").trim().toUpperCase();
+  const { error } = await supabase.from("sections").update({
+    name: String(fd.get("name")).trim(),
+    code: code || null,
+    sort_order: Number(fd.get("sort_order") ?? 0) || 0,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
+  revalidatePath("/admin/departments");
+  return error ? { error: error.message } : { ok: true };
+}
+
+export async function toggleSection(id: string, isActive: boolean) {
+  await requireRole(["super_admin"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("sections").update({ is_active: isActive }).eq("id", id);
+  revalidatePath("/admin/departments");
+  return error ? { error: error.message } : { ok: true };
+}
+
+export async function deleteSection(id: string) {
+  await requireRole(["super_admin"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("sections").delete().eq("id", id);
   revalidatePath("/admin/departments");
   return error ? { error: error.message } : { ok: true };
 }

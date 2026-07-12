@@ -113,6 +113,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (body.action === "set_leave") {
+      const status = ["leave", "off", "scheduled"].includes(body.status) ? body.status : "leave";
+      const from = String(body.date_from ?? "");
+      const to = String(body.date_to ?? from);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        return NextResponse.json({ error: "Valid date range required." }, { status: 400 });
+      }
+      const { data: updated, error } = await admin.from("employee_schedules")
+        .update({ status })
+        .eq("profile_id", body.profile_id)
+        .gte("work_date", from)
+        .lte("work_date", to)
+        .select("id");
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ ok: true, affected: updated?.length ?? 0 });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Server error" }, { status: 500 });
