@@ -2,14 +2,16 @@ import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, StatCard, Badge, EmptyState, Bar } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 import { DeliveryToggle, InlineVerify, FollowupButton } from "./overview-actions-ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function OverviewPage({ searchParams }: { searchParams: { date?: string } }) {
+export default async function OverviewPage({ searchParams }: { searchParams: { date?: string; branch?: string } }) {
   await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const date = searchParams.date ?? todayStr();
+  const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
   const today = todayStr();
   const leaveUntil = new Date(`${today}T00:00:00Z`);
   leaveUntil.setUTCDate(leaveUntil.getUTCDate() + 20);
@@ -18,49 +20,81 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const nextMonth = new Date(`${monthStart}T00:00:00Z`);
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
 
-  const [instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes] = await Promise.all([
-    supabase.from("checklist_instances")
+  let instQuery = supabase.from("checklist_instances")
       .select(`id, profile_id, department_id, status,
-        departments(id, name), shifts(name),
+        departments!inner(id, name, store_id), shifts(name),
         profiles!checklist_instances_profile_id_fkey(id, full_name, employee_code),
         checklist_tasks(id, title, status, priority, tags, is_overdue, employee_remarks, supervisor_remarks, completed_at, duration_minutes, blocked, blocked_reason)`)
-      .eq("work_date", date),
-    supabase.from("attendance_records").select("profile_id, status, late_minutes, flagged").eq("work_date", date),
-    supabase.from("incident_reports").select("id", { count: "exact", head: true }).gte("created_at", date + "T00:00:00Z").lt("created_at", date + "T23:59:59Z"),
-    supabase.from("departments").select("id, name").eq("is_active", true).order("name"),
-    supabase.from("followup_tasks").select("*, departments(name), profiles!followup_tasks_profile_id_fkey(full_name)")
-      .is("consumed_at", null).order("target_date"),
-    supabase.from("cash_reports").select("phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, created_at").eq("report_date", date),
-    supabase.from("break_sessions")
+      .eq("work_date", date);
+  let attQuery = supabase.from("attendance_records").select("profile_id, status, late_minutes, flagged, profiles!inner(store_id)").eq("work_date", date);
+  let incQuery = selectedBranch
+    ? supabase.from("incident_reports").select("id, departments!inner(store_id)", { count: "exact", head: true }).eq("departments.store_id", selectedBranch)
+    : supabase.from("incident_reports").select("id", { count: "exact", head: true });
+  incQuery = incQuery.gte("created_at", date + "T00:00:00Z").lt("created_at", date + "T23:59:59Z");
+  let deptsQuery = supabase.from("departments").select("id, name").eq("is_active", true).order("name");
+  let followQuery = supabase.from("followup_tasks").select("*, departments!inner(name, store_id), profiles!followup_tasks_profile_id_fkey(full_name)")
+      .is("consumed_at", null).order("target_date");
+  let cashQuery = supabase.from("cash_reports").select("phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, created_at, store_id").eq("report_date", date);
+  let breakQuery = supabase.from("break_sessions")
       .select("id, profile_id, started_at, ended_at, duration_minutes, flagged, flag_reason, profiles(full_name, employee_code)")
       .eq("work_date", date)
-      .order("started_at", { ascending: false }),
-    supabase.from("profiles")
+      .order("started_at", { ascending: false });
+  let profilesQuery = supabase.from("profiles")
       .select("id, full_name, employee_code, role, store_id, stores(name), department_assignments(departments(name))")
       .eq("status", "active")
       .in("role", ["staff", "supervisor"])
-      .order("full_name"),
-    supabase.from("employee_schedules")
-      .select("profile_id, status, shifts(name, start_time, end_time)")
-      .eq("work_date", date),
-    supabase.from("leave_requests")
-      .select("id, profile_id, leave_type, date_from, date_to, status, profiles(full_name, employee_code)")
+      .order("full_name");
+  let schedulesQuery = supabase.from("employee_schedules")
+      .select("profile_id, status, shifts(name, start_time, end_time), profiles!inner(store_id)")
+      .eq("work_date", date);
+  let leaveQuery = supabase.from("leave_requests")
+      .select("id, profile_id, leave_type, date_from, date_to, status, profiles!inner(full_name, employee_code, store_id)")
       .eq("status", "approved")
       .lte("date_from", leaveUntilStr)
       .gte("date_to", today)
-      .order("date_from"),
-    supabase.from("staff_delivery_runs")
+      .order("date_from");
+  let deliveryQuery = supabase.from("staff_delivery_runs")
       .select("id, profile_id, started_at, ended_at")
       .eq("work_date", date)
-      .order("started_at", { ascending: false }),
-    supabase.from("grooming_bookings")
+      .order("started_at", { ascending: false });
+  let groomingQuery = supabase.from("grooming_bookings")
       .select("id, assigned_groomer_id, status, payment_status, profiles!grooming_bookings_assigned_groomer_id_fkey(full_name)")
-      .eq("booking_date", date),
-    supabase.from("grooming_bookings")
+      .eq("booking_date", date);
+  let groomingMonthQuery = supabase.from("grooming_bookings")
       .select("id", { count: "exact", head: true })
       .eq("status", "completed")
       .gte("booking_date", monthStart)
-      .lt("booking_date", nextMonth.toISOString().slice(0, 10)),
+      .lt("booking_date", nextMonth.toISOString().slice(0, 10));
+  if (selectedBranch) {
+    instQuery = instQuery.eq("departments.store_id", selectedBranch);
+    attQuery = attQuery.eq("profiles.store_id", selectedBranch);
+    deptsQuery = deptsQuery.eq("store_id", selectedBranch);
+    followQuery = followQuery.eq("departments.store_id", selectedBranch);
+    cashQuery = cashQuery.eq("store_id", selectedBranch);
+    breakQuery = breakQuery.eq("store_id", selectedBranch);
+    profilesQuery = profilesQuery.eq("store_id", selectedBranch);
+    schedulesQuery = schedulesQuery.eq("profiles.store_id", selectedBranch);
+    leaveQuery = leaveQuery.eq("profiles.store_id", selectedBranch);
+    deliveryQuery = deliveryQuery.eq("store_id", selectedBranch);
+    groomingQuery = groomingQuery.eq("store_id", selectedBranch);
+    groomingMonthQuery = groomingMonthQuery.eq("store_id", selectedBranch);
+  }
+
+  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes] = await Promise.all([
+    supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
+    instQuery,
+    attQuery,
+    incQuery,
+    deptsQuery,
+    followQuery,
+    cashQuery,
+    breakQuery,
+    profilesQuery,
+    schedulesQuery,
+    leaveQuery,
+    deliveryQuery,
+    groomingQuery,
+    groomingMonthQuery,
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -161,12 +195,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     <div>
       <div className="sticky top-[57px] z-20 -mx-4 mb-6 border-b border-slate-200 bg-slate-50/95 px-4 pb-3 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 md:-mx-6 md:px-6">
         <PageHeader title="Command Center" subtitle={`Every department, every employee — ${date}`}
-          action={
-            <form className="flex gap-2">
-              <input type="date" name="date" defaultValue={date} className="input !w-auto" />
-              <button className="btn-secondary">Go</button>
-            </form>
-          } />
+          action={<BranchFilter branches={branchesRes.data ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />} />
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-8">
           <StatCard label="Completion" value={`${kpi.completion}%`} hint={`${done}/${allTasks.length} tasks`} />

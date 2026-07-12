@@ -2,21 +2,28 @@ import { requireProfile, isManagerUp } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, StatCard, Badge, EmptyState, Bar } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 import { GroomingActions, GroomingBookingForm } from "./grooming-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function GroomingPage({ searchParams }: { searchParams: { date?: string } }) {
+export default async function GroomingPage({ searchParams }: { searchParams: { date?: string; branch?: string } }) {
   const profile = await requireProfile();
   const supabase = createClient();
   const date = searchParams.date ?? todayStr();
   const canAssign = isManagerUp(profile.role);
+  const selectedBranch = canAssign && searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
 
-  const groomersRes = await supabase.from("profiles")
-    .select("id, full_name, employee_code, department_assignments!inner(departments!inner(code))")
+  let groomersQuery = supabase.from("profiles")
+    .select("id, full_name, employee_code, store_id, department_assignments!inner(departments!inner(code))")
     .eq("status", "active")
     .eq("department_assignments.departments.code", "GROOM")
     .order("full_name");
+  if (selectedBranch) groomersQuery = groomersQuery.eq("store_id", selectedBranch);
+  const [groomersRes, branchesRes] = await Promise.all([
+    groomersQuery,
+    canAssign ? supabase.from("stores").select("id, name, code").eq("is_active", true).order("name") : Promise.resolve({ data: [] } as any),
+  ]);
   const groomers = groomersRes.data ?? [];
   const isGroomer = groomers.some((g: any) => g.id === profile.id);
 
@@ -25,6 +32,7 @@ export default async function GroomingPage({ searchParams }: { searchParams: { d
     .eq("booking_date", date)
     .order("appointment_time", { ascending: true });
   if (!canAssign) bookingQuery = bookingQuery.eq("assigned_groomer_id", profile.id);
+  if (selectedBranch) bookingQuery = bookingQuery.eq("store_id", selectedBranch);
   const bookingsRes = await bookingQuery;
 
   const monthStart = `${date.slice(0, 7)}-01`;
@@ -36,6 +44,7 @@ export default async function GroomingPage({ searchParams }: { searchParams: { d
     .gte("booking_date", monthStart)
     .lt("booking_date", nextMonth.toISOString().slice(0, 10));
   if (!canAssign) monthQuery = monthQuery.eq("assigned_groomer_id", profile.id);
+  if (selectedBranch) monthQuery = monthQuery.eq("store_id", selectedBranch);
   const monthRes = await monthQuery;
 
   const bookings = bookingsRes.error ? [] : (bookingsRes.data ?? []);
@@ -52,10 +61,14 @@ export default async function GroomingPage({ searchParams }: { searchParams: { d
         subtitle={canAssign ? "Daily bookings, calls, completion, and payment status" : "Your grooming bookings for today"}
         action={
           <div className="flex flex-wrap gap-2">
-            <form className="flex gap-2">
-              <input type="date" name="date" defaultValue={date} className="input !w-auto" />
-              <button className="btn-secondary">Go</button>
-            </form>
+            {canAssign
+              ? <BranchFilter branches={branchesRes.data ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />
+              : (
+                <form className="flex gap-2">
+                  <input type="date" name="date" defaultValue={date} className="input !w-auto" />
+                  <button className="btn-secondary">Go</button>
+                </form>
+              )}
             {(canAssign || isGroomer) && <GroomingBookingForm groomers={groomers} defaultDate={date} canAssign={canAssign} />}
           </div>
         }

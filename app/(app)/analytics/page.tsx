@@ -1,22 +1,40 @@
 import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, StatCard, Bar, EmptyState, Table } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyticsPage() {
+export default async function AnalyticsPage({ searchParams }: { searchParams: { branch?: string } }) {
   await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
 
-  const [tasksRes, incRes, inspRes, attRes, welfareRes] = await Promise.all([
-    supabase.from("checklist_tasks")
-      .select("status, is_overdue, checklist_instances!inner(work_date, department_id, profile_id, departments(name), profiles(full_name, employee_code))")
-      .gte("checklist_instances.work_date", since).limit(5000),
-    supabase.from("incident_reports").select("status, category, created_at").gte("created_at", since + "T00:00:00Z"),
-    supabase.from("inspections").select("total_score, max_score, departments(name)").gte("work_date", since),
-    supabase.from("attendance_records").select("status").gte("work_date", since),
-    supabase.from("welfare_records").select("id", { count: "exact", head: true }).gte("recorded_at", since + "T00:00:00Z"),
+  let tasksQuery = supabase.from("checklist_tasks")
+    .select("status, is_overdue, checklist_instances!inner(work_date, department_id, profile_id, departments!inner(name, store_id), profiles(full_name, employee_code))")
+    .gte("checklist_instances.work_date", since).limit(5000);
+  let incQuery = selectedBranch
+    ? supabase.from("incident_reports").select("status, category, created_at, departments!inner(store_id)").eq("departments.store_id", selectedBranch)
+    : supabase.from("incident_reports").select("status, category, created_at");
+  incQuery = incQuery.gte("created_at", since + "T00:00:00Z");
+  let inspQuery = supabase.from("inspections").select("total_score, max_score, departments!inner(name, store_id)").gte("work_date", since);
+  let attQuery = supabase.from("attendance_records").select("status, profiles!inner(store_id)").gte("work_date", since);
+  let welfareQuery = supabase.from("welfare_records").select("id, animals!inner(store_id)", { count: "exact", head: true }).gte("recorded_at", since + "T00:00:00Z");
+  if (selectedBranch) {
+    tasksQuery = tasksQuery.eq("checklist_instances.departments.store_id", selectedBranch);
+    inspQuery = inspQuery.eq("departments.store_id", selectedBranch);
+    attQuery = attQuery.eq("profiles.store_id", selectedBranch);
+    welfareQuery = welfareQuery.eq("animals.store_id", selectedBranch);
+  }
+
+  const [branchesRes, tasksRes, incRes, inspRes, attRes, welfareRes] = await Promise.all([
+    supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
+    tasksQuery,
+    incQuery,
+    inspQuery,
+    attQuery,
+    welfareQuery,
   ]);
 
   const tasks = tasksRes.data ?? [];
@@ -60,7 +78,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div>
-      <PageHeader title="Analytics" subtitle="Last 30 days — all departments" />
+      <PageHeader title="Analytics" subtitle="Last 30 days" action={<BranchFilter branches={branchesRes.data ?? []} selected={selectedBranch ?? "all"} />} />
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Task Completion" value={`${completionPct}%`} hint={`${doneTasks}/${totalTasks}`} />
         <StatCard label="Overdue Tasks" value={overdueTasks} />

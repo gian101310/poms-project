@@ -1,32 +1,44 @@
 import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, StatCard, Bar, EmptyState, Badge } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 import { fmtDate } from "@/lib/tz";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReportsPage({ searchParams }: { searchParams: { date?: string } }) {
+export default async function ReportsPage({ searchParams }: { searchParams: { date?: string; branch?: string } }) {
   await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
+  const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
 
-  const { data: reports } = await supabase.from("daily_reports")
-    .select("report_date").order("report_date", { ascending: false }).limit(30);
+  let reportsQuery = supabase.from("daily_reports")
+    .select("report_date, store_id").order("report_date", { ascending: false }).limit(30);
+  if (selectedBranch) reportsQuery = reportsQuery.eq("store_id", selectedBranch);
+  const [{ data: reports }, { data: branches }] = await Promise.all([
+    reportsQuery,
+    supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
+  ]);
 
   const selectedDate = searchParams.date ?? reports?.[0]?.report_date;
-  const { data: report } = selectedDate
-    ? await supabase.from("daily_reports").select("*").eq("report_date", selectedDate).maybeSingle()
+  let reportQuery = selectedDate
+    ? supabase.from("daily_reports").select("*").eq("report_date", selectedDate)
+    : null;
+  if (reportQuery && selectedBranch) reportQuery = reportQuery.eq("store_id", selectedBranch);
+  const { data: report } = reportQuery
+    ? await reportQuery.maybeSingle()
     : { data: null };
 
   const c: any = report?.content;
 
   return (
     <div>
-      <PageHeader title="Daily Reports" subtitle="Delivered by the orchestrator at 22:15 each night" />
+      <PageHeader title="Daily Reports" subtitle="Delivered by the orchestrator at 22:15 each night"
+        action={<BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} />} />
 
       {(reports ?? []).length > 0 && (
         <div className="mb-6 flex flex-wrap gap-1.5">
           {(reports ?? []).map((r: any) => (
-            <a key={r.report_date} href={`/reports?date=${r.report_date}`}
+            <a key={r.report_date} href={`/reports?date=${r.report_date}${selectedBranch ? `&branch=${selectedBranch}` : ""}`}
               className={`rounded-lg px-2.5 py-1 text-xs font-medium ${r.report_date === selectedDate
                 ? "bg-brand-600 text-white"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"}`}>

@@ -1,6 +1,7 @@
 import { requireProfile, isSupervisorUp } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, EmptyState, Table, StatCard } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 import { fmtDate, fmtTime, todayStr } from "@/lib/tz";
 import { AlertTriangle } from "lucide-react";
 
@@ -8,22 +9,29 @@ export const dynamic = "force-dynamic";
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${min % 60}m`;
 
-export default async function AttendancePage() {
+export default async function AttendancePage({ searchParams }: { searchParams: { branch?: string } }) {
   const profile = await requireProfile();
   const supabase = createClient();
+  const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
 
   const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const query = supabase.from("attendance_records")
-    .select("*, profiles(full_name, employee_code)")
+  let query = supabase.from("attendance_records")
+    .select("*, profiles!inner(full_name, employee_code, store_id)")
     .gte("work_date", since)
     .order("work_date", { ascending: false });
+  if (selectedBranch && isSupervisorUp(profile.role)) query = query.eq("profiles.store_id", selectedBranch);
 
   const { data: records } = isSupervisorUp(profile.role)
     ? await query.limit(300)
     : await query.eq("profile_id", profile.id);
+  let breakQuery = supabase.from("break_sessions").select("profile_id, work_date, duration_minutes, flagged, store_id").gte("work_date", since);
+  if (selectedBranch && isSupervisorUp(profile.role)) breakQuery = breakQuery.eq("store_id", selectedBranch);
   const { data: breaks } = isSupervisorUp(profile.role)
-    ? await supabase.from("break_sessions").select("profile_id, work_date, duration_minutes, flagged").gte("work_date", since).limit(1000)
+    ? await breakQuery.limit(1000)
     : await supabase.from("break_sessions").select("profile_id, work_date, duration_minutes, flagged").eq("profile_id", profile.id).gte("work_date", since);
+  const { data: branches } = isSupervisorUp(profile.role)
+    ? await supabase.from("stores").select("id, name, code").eq("is_active", true).order("name")
+    : { data: [] };
   const breakMap = new Map<string, { total: number; flagged: number }>();
   for (const b of breaks ?? []) {
     const key = `${b.profile_id}:${b.work_date}`;
@@ -52,7 +60,8 @@ export default async function AttendancePage() {
 
   return (
     <div>
-      <PageHeader title="Attendance" subtitle="This week + last 30 days" />
+      <PageHeader title="Attendance" subtitle="This week + last 30 days"
+        action={isSupervisorUp(profile.role) ? <BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} /> : null} />
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Worked This Week" value={hm(wWorked)} hint={`${thisWeek.length} day(s)`} />
         <StatCard label="Late This Week" value={hm(wLate)} />

@@ -2,6 +2,7 @@ import { requireProfile, isManagerUp } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, Badge, EmptyState, StatCard, Table } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 import { CashierForm } from "./cashier-form";
 
 export const dynamic = "force-dynamic";
@@ -9,16 +10,25 @@ export const dynamic = "force-dynamic";
 const money = (value: number | null | undefined) =>
   `AED ${Number(value ?? 0).toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default async function CashierPage({ searchParams }: { searchParams: { date?: string } }) {
+export default async function CashierPage({ searchParams }: { searchParams: { date?: string; branch?: string } }) {
   const profile = await requireProfile();
   const supabase = createClient();
   const date = searchParams.date ?? todayStr();
+  const selectedBranch = isManagerUp(profile.role) && searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
 
-  const { data: reports } = await supabase
+  let reportsQuery = supabase
     .from("cash_reports")
-    .select("*, profiles!cash_reports_submitted_by_fkey(full_name, employee_code)")
+    .select("*, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), stores(name)")
     .eq("report_date", date)
     .order("created_at", { ascending: false });
+  if (selectedBranch) reportsQuery = reportsQuery.eq("store_id", selectedBranch);
+  if (!isManagerUp(profile.role)) reportsQuery = reportsQuery.eq("store_id", profile.store_id);
+  const [{ data: reports }, { data: branches }] = await Promise.all([
+    reportsQuery,
+    isManagerUp(profile.role)
+      ? supabase.from("stores").select("id, name, code").eq("is_active", true).order("name")
+      : Promise.resolve({ data: [] } as any),
+  ]);
 
   const rows = (reports ?? []) as any[];
   const totals = rows.reduce((acc, r) => ({
@@ -32,10 +42,14 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     <div>
       <PageHeader title="Cashier Cash Report" subtitle="Opening, shift-change, and closing money log."
         action={
-          <form className="flex gap-2">
-            <input type="date" name="date" defaultValue={date} className="input !w-auto" />
-            <button className="btn-secondary">Go</button>
-          </form>
+          isManagerUp(profile.role)
+            ? <BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />
+            : (
+              <form className="flex gap-2">
+                <input type="date" name="date" defaultValue={date} className="input !w-auto" />
+                <button className="btn-secondary">Go</button>
+              </form>
+            )
         } />
 
       <CashierForm today={date} />
@@ -50,11 +64,12 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       {rows.length === 0 ? (
         <EmptyState message={`No cash reports for ${date}.`} />
       ) : (
-        <Table headers={["Time", "Phase", "Submitted By", "Float", "Cash", "Card", "Tips", "Expenses", "Notes"]}>
+        <Table headers={["Time", "Phase", "Branch", "Submitted By", "Float", "Cash", "Card", "Tips", "Expenses", "Notes"]}>
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="td">{fmtTime(r.created_at)}</td>
               <td className="td"><Badge value={r.phase} /></td>
+              <td className="td text-xs">{r.stores?.name ?? "—"}</td>
               <td className="td">
                 {isManagerUp(profile.role)
                   ? `${r.profiles?.full_name ?? "Unknown"} (${r.profiles?.employee_code ?? "—"})`
