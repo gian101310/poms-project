@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     .single();
   if (storeError || !store) return NextResponse.json({ error: "Springs branch not found." }, { status: 500 });
 
-  const rows = items.map((item: any) => ({
+  const kennelRows = items.map((item: any) => ({
     store_id: store.id,
     inspection_date: inspectionDate,
     kennel_report_id: String(item.report_id ?? ""),
@@ -44,12 +44,37 @@ export async function POST(req: Request) {
     status: item.status === "needs_attention" ? "needs_attention" : "ok",
     remarks: String(item.remarks ?? "").trim() || null,
     action_needed: String(item.action_needed ?? "").trim() || null,
-  })).filter((item: any) => item.kennel_report_id && item.row_id && item.pet_type);
+  })).filter((item: any, index: number) => (items[index]?.source_type ?? "boarding") === "boarding" && item.kennel_report_id && item.row_id && item.pet_type);
 
-  if (rows.length === 0) return NextResponse.json({ error: "No valid animals to inspect." }, { status: 400 });
+  const shopRows = items.map((item: any) => ({
+    store_id: store.id,
+    inspection_date: inspectionDate,
+    shop_animal_report_id: String(item.report_id ?? ""),
+    row_id: String(item.row_id ?? ""),
+    pet_type: String(item.pet_type ?? ""),
+    breed: String(item.breed ?? "").trim() || null,
+    animal_name: String(item.animal_name ?? "").trim() || null,
+    display_area: String(item.display_area ?? "").trim() || null,
+    cage_number: String(item.cage_number ?? "").trim() || null,
+    inspector_name: inspectorName,
+    inspection_shift: inspectionShift,
+    feeding_ok: Boolean(item.feeding_ok),
+    cleaning_ok: Boolean(item.cleaning_ok),
+    status: item.status === "needs_attention" ? "needs_attention" : "ok",
+    remarks: String(item.remarks ?? "").trim() || null,
+    action_needed: String(item.action_needed ?? "").trim() || null,
+  })).filter((item: any, index: number) => items[index]?.source_type === "shop" && item.shop_animal_report_id && item.row_id && item.pet_type);
 
-  const { error } = await admin.from("kennel_inspections").insert(rows);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (kennelRows.length === 0 && shopRows.length === 0) return NextResponse.json({ error: "No valid animals to inspect." }, { status: 400 });
 
-  return NextResponse.json({ ok: true, count: rows.length });
+  if (kennelRows.length > 0) {
+    const { error } = await admin.from("kennel_inspections").insert(kennelRows);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (shopRows.length > 0) {
+    const { error } = await admin.from("shop_animal_inspections").insert(shopRows);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, count: kennelRows.length + shopRows.length });
 }

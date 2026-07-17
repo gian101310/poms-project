@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  CheckCircle2, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Trash2,
+  CheckCircle2, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Store, Trash2,
 } from "lucide-react";
 
-type PetType = "Dog" | "Cat" | "Bird" | "Reptile" | "Rabbit" | "Guinea Pig" | "Hamster" | "Sugar Glider" | "Fancy Mouse" | "Rat" | "Degu";
+type PetType = "Dog" | "Cat" | "Bird" | "Reptile" | "Fish" | "Insect" | "Rabbit" | "Guinea Pig" | "Hamster" | "Sugar Glider" | "Fancy Mouse" | "Rat" | "Degu";
 type BoardingCategory = "dogs" | "cats" | "birds" | "reptiles" | "small_animals";
+type PublicSheetTab = "boarding" | "shop" | "grooming" | "inspection";
 
 type StaffOption = {
   id: string;
@@ -45,12 +46,28 @@ type GroomingRow = {
   note: string;
 };
 
+type ShopAnimalRow = {
+  id: string;
+  petType: PetType;
+  animalName: string;
+  breed: string;
+  displayArea: string;
+  cageColor: string;
+  cageNumber: string;
+  quantity: number;
+  healthStatus: string;
+  report: string;
+  feedingDone: boolean;
+  cleaningDone: boolean;
+};
+
 type KennelAnimal = {
   key: string;
+  source_type: "boarding" | "shop";
   report_id: string;
   row_id: string;
   report_date: string;
-  category: BoardingCategory;
+  category: BoardingCategory | "shop_animals";
   submitted_by_name: string;
   submitted_at: string;
   label: string;
@@ -60,6 +77,8 @@ type KennelAnimal = {
   breed: string;
   cage_color: string;
   cage_number: string;
+  display_area?: string;
+  quantity?: number;
   checkout_date: string;
   payment_status: string;
   health_status: string;
@@ -90,7 +109,7 @@ type InspectionDraft = {
   actionNeeded: string;
 };
 
-const petTypes: PetType[] = ["Dog", "Cat", "Bird", "Reptile", "Rabbit", "Guinea Pig", "Hamster", "Sugar Glider", "Fancy Mouse", "Rat", "Degu"];
+const petTypes: PetType[] = ["Dog", "Cat", "Bird", "Reptile", "Fish", "Insect", "Rabbit", "Guinea Pig", "Hamster", "Sugar Glider", "Fancy Mouse", "Rat", "Degu"];
 const boardingCategories: { id: BoardingCategory; label: string; petTypes: PetType[] }[] = [
   { id: "dogs", label: "Dogs Boarding", petTypes: ["Dog"] },
   { id: "cats", label: "Cats Boarding", petTypes: ["Cat"] },
@@ -104,6 +123,7 @@ const healthStatuses = ["Normal", "Needs observation", "Medication required", "N
 const groomingStatuses = ["Booked", "Confirmed", "Arrived", "In progress", "Completed", "Paid", "Unpaid", "No show", "Cancelled", "Needs follow-up"];
 const groomers = ["Alfred", "Alex", "Chris", "Garry"];
 const paymentStatuses = ["unpaid", "paid"];
+const displayAreas = ["Bird room", "Small animal wall", "Reptile rack", "Fish wall", "Insect shelf", "Front display", "Quarantine", "Other"];
 
 const breedByType: Record<PetType, string[]> = {
   Dog: [
@@ -144,6 +164,14 @@ const breedByType: Record<PetType, string[]> = {
     "Tortoise", "Turtle", "Gecko", "Leopard Gecko", "Fat Tail Gecko", "Crested Gecko", "Sugar Glider",
     "Bearded Dragon", "Tarantula", "Chameleon", "Snake", "Ball Python", "Corn Snake", "King Snake",
     "Milk Snake", "Axolotl", "Sulcata Tortoise", "Greek Tortoise", "Red-Eared Slider", "Other Reptile",
+  ],
+  Fish: [
+    "Axolotl", "Betta", "Goldfish", "Guppy", "Molly", "Platy", "Tetra", "Discus", "Oscar", "Cichlid",
+    "Koi", "Angelfish", "Gourami", "Corydoras", "Pleco", "Shrimp", "Snail", "Other Fish",
+  ],
+  Insect: [
+    "Dubia Roaches", "Crickets", "Mealworms", "Super Worms", "Red Runners", "Waxworms", "Fruit Flies",
+    "Springtails", "Isopods", "Other Insect",
   ],
   Hamster: ["Syrian Hamster", "Dwarf Hamster", "Roborovski Hamster", "Chinese Hamster", "Winter White Hamster", "Other Hamster"],
   "Sugar Glider": ["Classic Grey Sugar Glider", "Leucistic Sugar Glider", "Mosaic Sugar Glider", "White Face Sugar Glider", "Other Sugar Glider"],
@@ -189,6 +217,23 @@ function blankGrooming(): GroomingRow {
     bookedTime: "",
     statusOutcome: "Booked",
     note: "",
+  };
+}
+
+function blankShopAnimal(petType: PetType = "Bird"): ShopAnimalRow {
+  return {
+    id: id(),
+    petType,
+    animalName: "",
+    breed: "",
+    displayArea: "Bird room",
+    cageColor: "",
+    cageNumber: "",
+    quantity: 1,
+    healthStatus: "Normal",
+    report: "",
+    feedingDone: false,
+    cleaningDone: false,
   };
 }
 
@@ -240,8 +285,8 @@ function Toolbar({
   setActive,
   reset,
 }: {
-  active: "boarding" | "grooming" | "inspection";
-  setActive: (value: "boarding" | "grooming" | "inspection") => void;
+  active: PublicSheetTab;
+  setActive: (value: PublicSheetTab) => void;
   reset: () => void;
 }) {
   return (
@@ -249,12 +294,15 @@ function Toolbar({
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">Public Pet Sheets</h1>
-          <p className="text-sm text-slate-500">Boarding, grooming, and admin inspection sheets</p>
+          <p className="text-sm text-slate-500">Boarding, shop animals, grooming, and admin inspection sheets</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap rounded-lg border border-slate-300 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
             <button className={`btn !py-1.5 ${active === "boarding" ? "bg-brand-600 text-white" : "text-slate-600 dark:text-slate-300"}`} onClick={() => setActive("boarding")}>
               <ClipboardList size={15} /> Boarding
+            </button>
+            <button className={`btn !py-1.5 ${active === "shop" ? "bg-brand-600 text-white" : "text-slate-600 dark:text-slate-300"}`} onClick={() => setActive("shop")}>
+              <Store size={15} /> Shop Animals
             </button>
             <button className={`btn !py-1.5 ${active === "grooming" ? "bg-brand-600 text-white" : "text-slate-600 dark:text-slate-300"}`} onClick={() => setActive("grooming")}>
               <Scissors size={15} /> Grooming
@@ -452,6 +500,146 @@ function BoardingSheet() {
   );
 }
 
+function ShopAnimalsSheet() {
+  const [rows, setRows] = useState<ShopAnimalRow[]>([
+    blankShopAnimal("Bird"),
+    blankShopAnimal("Reptile"),
+    blankShopAnimal("Fish"),
+    blankShopAnimal("Insect"),
+  ]);
+  const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [submittedBy, setSubmittedBy] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [reportDate, setReportDate] = useState(today);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/public-sheets/staff", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) setStaff(json.staff ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setStaff([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function update(rowId: string, patch: Partial<ShopAnimalRow>) {
+    setRows((current) => current.map((row) => row.id === rowId ? { ...row, ...patch } : row));
+  }
+
+  async function submitReport() {
+    setSubmitting(true);
+    setMessage("");
+    const chosenStaff = staff.find((item) => item.id === submittedBy);
+    try {
+      const res = await fetch("/api/public-sheets/shop-animal-reports", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          report_date: reportDate,
+          submitted_by_profile_id: chosenStaff?.id ?? null,
+          submitted_by_name: chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : "",
+          rows: rows.map((row) => ({
+            row_id: row.id,
+            pet_type: row.petType,
+            animal_name: row.animalName,
+            breed: row.breed,
+            display_area: row.displayArea,
+            cage_color: row.cageColor,
+            cage_number: row.cageNumber,
+            quantity: row.quantity,
+            health_status: row.healthStatus,
+            report: row.report,
+            feeding_done: row.feedingDone,
+            cleaning_done: row.cleaningDone,
+          })),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not submit shop animal report.");
+      setMessage(`Submitted shop animal report at ${new Date(json.report.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+    } catch (e: any) {
+      setMessage(e.message ?? "Could not submit shop animal report.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="mx-auto max-w-7xl p-4 md:p-6">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Shop Animals Report Sheet</h2>
+          <p className="text-sm text-slate-500">Daily check for animals on sale or display; submissions appear in inspection and Daily Reports.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 print:hidden">
+          <button className="btn-primary" onClick={() => setRows((current) => [...current, blankShopAnimal()])}><Plus size={15} /> Add animal</button>
+          <button className="btn-primary" onClick={submitReport} disabled={submitting || !submittedBy}><Send size={15} /> {submitting ? "Submitting..." : "Submit report"}</button>
+        </div>
+      </div>
+
+      <div className="card mb-4 grid gap-3 p-4 md:grid-cols-4 print:grid-cols-4">
+        <Field label="Branch"><input className="input" value="Springs Souk" readOnly /></Field>
+        <Field label="Report date"><input className="input" type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} /></Field>
+        <Field label="Staff name">
+          <select className="input" value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)}>
+            <option value="">Choose Springs staff</option>
+            {staff.map((person) => <option key={person.id} value={person.id}>{person.full_name} ({person.employee_code})</option>)}
+          </select>
+        </Field>
+        <Field label="Shift"><select className="input" defaultValue="Morning"><option>Morning</option><option>Afternoon</option><option>Closing</option></select></Field>
+      </div>
+      {message && <div className={`card mb-4 p-3 text-sm ${message.startsWith("Submitted") ? "text-green-700" : "text-red-600"}`}>{message}</div>}
+
+      <div className="space-y-3">
+        {rows.map((row, index) => (
+          <div key={row.id} className="card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-semibold">Shop Animal {index + 1}</p>
+              {rows.length > 1 && (
+                <button className="btn-secondary !px-2 !py-1 print:hidden" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} title="Remove animal">
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <Field label="Pet type">
+                <select className="input" value={row.petType} onChange={(e) => update(row.id, { petType: e.target.value as PetType, breed: "" })}>
+                  {petTypes.filter((item) => !["Dog", "Cat"].includes(item)).map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </Field>
+              <Field label="Animal name"><input className="input" value={row.animalName} onChange={(e) => update(row.id, { animalName: e.target.value })} placeholder="Optional name" /></Field>
+              <Field label="Breed / type">
+                <BreedSearch idPrefix="shop-breeds" rowId={row.id} petType={row.petType} value={row.breed} onChange={(breed) => update(row.id, { breed })} />
+              </Field>
+              <Field label="Quantity"><input className="input" type="number" min="1" value={row.quantity} onChange={(e) => update(row.id, { quantity: Number(e.target.value) || 1 })} /></Field>
+              <Field label="Display area"><select className="input" value={row.displayArea} onChange={(e) => update(row.id, { displayArea: e.target.value })}>{displayAreas.map((item) => <option key={item}>{item}</option>)}</select></Field>
+              <Field label="Cage color"><select className="input" value={row.cageColor} onChange={(e) => update(row.id, { cageColor: e.target.value })}><option value="">Select color</option>{cageColors.map((item) => <option key={item}>{item}</option>)}</select></Field>
+              <Field label="Cage number"><input className="input" value={row.cageNumber} onChange={(e) => update(row.id, { cageNumber: e.target.value })} placeholder="Cage / tank no." /></Field>
+              <Field label="Health status"><select className="input" value={row.healthStatus} onChange={(e) => update(row.id, { healthStatus: e.target.value })}>{healthStatuses.map((item) => <option key={item}>{item}</option>)}</select></Field>
+              <Field label="Health status report"><input className="input" value={row.report} onChange={(e) => update(row.id, { report: e.target.value })} placeholder="Short report" /></Field>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+              <DoneToggle label="Done feeding" pressed={row.feedingDone} onClick={() => update(row.id, { feedingDone: !row.feedingDone })} />
+              <DoneToggle label="Done cleaning" pressed={row.cleaningDone} onClick={() => update(row.id, { cleaningDone: !row.cleaningDone })} />
+            </div>
+            <div className="mt-3 hidden grid-cols-2 gap-2 text-xs print:grid">
+              <span>Feeding: {row.feedingDone ? "Done" : "Pending"}</span>
+              <span>Cleaning: {row.cleaningDone ? "Done" : "Pending"}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function GroomingSheet() {
   const [rows, setRows] = useState<GroomingRow[]>([blankGrooming(), blankGrooming(), blankGrooming()]);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -553,14 +741,14 @@ function InspectionSheet() {
     try {
       const res = await fetch(`/api/public-sheets/inspection-animals?date=${encodeURIComponent(inspectionDate)}&password=${encodeURIComponent(password)}`, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? "Could not load boarding animals.");
+      if (!res.ok) throw new Error(json.error ?? "Could not load animals.");
       const nextAnimals = json.animals ?? [];
       setAnimals(nextAnimals);
       setYesterdaySummary(json.yesterdaySummary ?? "");
       setPreviousIssues(json.previousIssues ?? []);
       setDrafts(Object.fromEntries(nextAnimals.map((animal: KennelAnimal) => [animal.key, defaultDraft(animal)])));
     } catch (e: any) {
-      setError(e.message ?? "Could not load boarding animals.");
+      setError(e.message ?? "Could not load animals.");
     } finally {
       setLoading(false);
     }
@@ -605,11 +793,14 @@ function InspectionSheet() {
           inspector_name: inspectorName,
           inspection_shift: inspectionShift,
           items: animals.map((animal) => ({
+            source_type: animal.source_type,
             report_id: animal.report_id,
             row_id: animal.row_id,
             category: animal.category,
             pet_type: animal.pet_type,
             animal_name: animal.animal_name,
+            breed: animal.breed,
+            display_area: animal.display_area,
             cage_number: animal.cage_number,
             feeding_ok: drafts[animal.key]?.feedingOk ?? false,
             cleaning_ok: drafts[animal.key]?.cleaningOk ?? false,
@@ -659,7 +850,7 @@ function InspectionSheet() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Admin Inspection Sheet</h2>
-          <p className="text-sm text-slate-500">Inspect every animal from the boarding sheet and leave remarks for the daily kennel report.</p>
+          <p className="text-sm text-slate-500">Inspect boarding and shop animals, then leave remarks for the daily report.</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <button className="btn-secondary" onClick={loadInspectionAnimals} disabled={loading}><RotateCcw size={15} /> {loading ? "Loading..." : "Refresh animals"}</button>
@@ -691,7 +882,7 @@ function InspectionSheet() {
       {message && <div className={`card mb-4 p-3 text-sm ${message.startsWith("Inspection saved") ? "text-green-700" : "text-red-600"}`}>{message}</div>}
 
       {animals.length === 0 ? (
-        <div className="card p-8 text-sm text-slate-400">No boarding animals submitted for this date yet.</div>
+        <div className="card p-8 text-sm text-slate-400">No boarding or shop animals submitted for this date yet.</div>
       ) : (
         <div className="space-y-3">
           {animals.map((animal, index) => {
@@ -700,13 +891,19 @@ function InspectionSheet() {
               <div key={animal.key} className="card p-4">
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold">{animal.label || `Boarding ${index + 1}`} - {animal.animal_name || "Unnamed"} <span className="text-sm text-slate-400">({animal.pet_type})</span></p>
+                    <p className="font-semibold">{animal.label || `${animal.source_type === "shop" ? "Shop Animal" : "Boarding"} ${index + 1}`} - {animal.animal_name || "Unnamed"} <span className="text-sm text-slate-400">({animal.pet_type})</span></p>
                     <p className="text-xs text-slate-400">
-                      {String(animal.category).replace(/_/g, " ")} · {animal.breed || "No breed"} · cage {[animal.cage_color, animal.cage_number].filter(Boolean).join(" / ") || "not set"}
+                      {String(animal.category).replace(/_/g, " ")} · {animal.breed || "No breed"} · {[animal.display_area, animal.cage_color, animal.cage_number].filter(Boolean).join(" / ") || "location not set"}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Client {animal.client_number || "not set"} · checkout {animal.checkout_date || "not set"} · payment {animal.payment_status || "unpaid"}
-                    </p>
+                    {animal.source_type === "boarding" ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Client {animal.client_number || "not set"} · checkout {animal.checkout_date || "not set"} · payment {animal.payment_status || "unpaid"}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Shop display · quantity {animal.quantity ?? 1}
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-slate-500">
                       Staff report: feeding {animal.feeding_done ? "done" : "missed"} · cleaning {animal.cleaning_done ? "done" : "missed"}
                       {animal.pet_type === "Dog" ? ` · walking ${animal.walking_done ? "done" : "missed"}` : ""}
@@ -745,13 +942,14 @@ function InspectionSheet() {
 }
 
 export function PublicSheets() {
-  const [active, setActive] = useState<"boarding" | "grooming" | "inspection">("boarding");
+  const [active, setActive] = useState<PublicSheetTab>("boarding");
   const [version, setVersion] = useState(0);
 
   return (
     <main key={version} className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Toolbar active={active} setActive={setActive} reset={() => setVersion((current) => current + 1)} />
       {active === "boarding" && <BoardingSheet />}
+      {active === "shop" && <ShopAnimalsSheet />}
       {active === "grooming" && <GroomingSheet />}
       {active === "inspection" && <InspectionSheet />}
     </main>

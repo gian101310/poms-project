@@ -29,13 +29,30 @@ export async function GET(req: Request) {
     .single();
   if (storeError || !store) return NextResponse.json({ error: "Springs branch not found." }, { status: 500 });
 
-  const [{ data: reports, error: reportsError }, { data: inspections, error: inspectionsError }, { data: previous, error: previousError }] = await Promise.all([
+  const [
+    { data: reports, error: reportsError },
+    { data: shopReports, error: shopReportsError },
+    { data: inspections, error: inspectionsError },
+    { data: shopInspections, error: shopInspectionsError },
+    { data: previous, error: previousError },
+    { data: previousShop, error: previousShopError },
+  ] = await Promise.all([
     admin.from("kennel_reports")
       .select("id, report_date, category, submitted_by_name, submitted_at, rows")
       .eq("store_id", store.id)
       .eq("report_date", reportDate)
       .order("submitted_at", { ascending: true }),
+    admin.from("shop_animal_reports")
+      .select("id, report_date, submitted_by_name, submitted_at, rows")
+      .eq("store_id", store.id)
+      .eq("report_date", reportDate)
+      .order("submitted_at", { ascending: true }),
     admin.from("kennel_inspections")
+      .select("*")
+      .eq("store_id", store.id)
+      .eq("inspection_date", reportDate)
+      .order("created_at", { ascending: false }),
+    admin.from("shop_animal_inspections")
       .select("*")
       .eq("store_id", store.id)
       .eq("inspection_date", reportDate)
@@ -45,24 +62,37 @@ export async function GET(req: Request) {
       .eq("store_id", store.id)
       .eq("inspection_date", yesterday)
       .order("created_at", { ascending: false }),
+    admin.from("shop_animal_inspections")
+      .select("*")
+      .eq("store_id", store.id)
+      .eq("inspection_date", yesterday)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (reportsError) return NextResponse.json({ error: reportsError.message }, { status: 500 });
+  if (shopReportsError && !isMissingTable(shopReportsError)) return NextResponse.json({ error: shopReportsError.message }, { status: 500 });
   if (inspectionsError && !isMissingTable(inspectionsError)) return NextResponse.json({ error: inspectionsError.message }, { status: 500 });
+  if (shopInspectionsError && !isMissingTable(shopInspectionsError)) return NextResponse.json({ error: shopInspectionsError.message }, { status: 500 });
   if (previousError && !isMissingTable(previousError)) return NextResponse.json({ error: previousError.message }, { status: 500 });
+  if (previousShopError && !isMissingTable(previousShopError)) return NextResponse.json({ error: previousShopError.message }, { status: 500 });
 
   const latestByAnimal = new Map<string, any>();
   for (const item of inspections ?? []) {
     const key = `${item.kennel_report_id}:${item.row_id}`;
     if (!latestByAnimal.has(key)) latestByAnimal.set(key, item);
   }
+  for (const item of shopInspections ?? []) {
+    const key = `shop:${item.shop_animal_report_id}:${item.row_id}`;
+    if (!latestByAnimal.has(key)) latestByAnimal.set(key, item);
+  }
 
-  const animals = (reports ?? []).flatMap((report: any) =>
+  const boardingAnimals = (reports ?? []).flatMap((report: any) =>
     (report.rows ?? []).map((row: any, index: number) => {
       const rowId = row.row_id ?? `${report.id}-${index}`;
       const key = `${report.id}:${rowId}`;
       return {
         key,
+        source_type: "boarding",
         report_id: report.id,
         row_id: rowId,
         report_date: report.report_date,
@@ -87,8 +117,45 @@ export async function GET(req: Request) {
       };
     })
   );
+  const shopAnimals = shopReportsError && isMissingTable(shopReportsError) ? [] : (shopReports ?? []).flatMap((report: any) =>
+    (report.rows ?? []).map((row: any, index: number) => {
+      const rowId = row.row_id ?? `${report.id}-${index}`;
+      const key = `shop:${report.id}:${rowId}`;
+      return {
+        key,
+        source_type: "shop",
+        report_id: report.id,
+        row_id: rowId,
+        report_date: report.report_date,
+        category: "shop_animals",
+        submitted_by_name: report.submitted_by_name,
+        submitted_at: report.submitted_at,
+        label: row.label ?? `Shop Animal ${index + 1}`,
+        pet_type: row.pet_type,
+        animal_name: row.animal_name,
+        client_number: "",
+        breed: row.breed,
+        cage_color: row.cage_color,
+        cage_number: row.cage_number,
+        display_area: row.display_area,
+        quantity: row.quantity,
+        checkout_date: "",
+        payment_status: "",
+        health_status: row.health_status,
+        report: row.report,
+        feeding_done: Boolean(row.feeding_done),
+        cleaning_done: Boolean(row.cleaning_done),
+        walking_done: false,
+        latest_inspection: latestByAnimal.get(key) ?? null,
+      };
+    })
+  );
+  const animals = [...boardingAnimals, ...shopAnimals];
 
-  const previousRows = previous ?? [];
+  const previousRows = [
+    ...(previous ?? []).map((row: any) => ({ ...row, source_type: "boarding" })),
+    ...(previousShop ?? []).map((row: any) => ({ ...row, source_type: "shop" })),
+  ];
   const issueRows = previousRows.filter((row: any) => row.status !== "ok" || row.action_needed || row.remarks);
   const yesterdaySummary = previousRows.length === 0
     ? "No inspection recorded yesterday."

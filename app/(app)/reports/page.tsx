@@ -29,26 +29,47 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
     .eq("report_date", selectedDate)
     .order("submitted_at", { ascending: false });
   if (selectedBranch) kennelReportsQuery = kennelReportsQuery.eq("store_id", selectedBranch);
+  let shopAnimalReportsQuery = supabase.from("shop_animal_reports")
+    .select("id, submitted_by_name, submitted_at, total_animals, feeding_done, cleaning_done, rows, store_id")
+    .eq("report_date", selectedDate)
+    .order("submitted_at", { ascending: false });
+  if (selectedBranch) shopAnimalReportsQuery = shopAnimalReportsQuery.eq("store_id", selectedBranch);
   let kennelInspectionsQuery = supabase.from("kennel_inspections")
     .select("id, category, pet_type, animal_name, cage_number, inspector_name, inspection_shift, feeding_ok, cleaning_ok, walking_ok, status, remarks, action_needed, created_at, store_id")
     .eq("inspection_date", selectedDate)
     .order("created_at", { ascending: false });
   if (selectedBranch) kennelInspectionsQuery = kennelInspectionsQuery.eq("store_id", selectedBranch);
-  const [{ data: report }, kennelReportsRes, kennelInspectionsRes] = await Promise.all([
+  let shopInspectionsQuery = supabase.from("shop_animal_inspections")
+    .select("id, pet_type, animal_name, display_area, cage_number, inspector_name, inspection_shift, feeding_ok, cleaning_ok, status, remarks, action_needed, created_at, store_id")
+    .eq("inspection_date", selectedDate)
+    .order("created_at", { ascending: false });
+  if (selectedBranch) shopInspectionsQuery = shopInspectionsQuery.eq("store_id", selectedBranch);
+  const [{ data: report }, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes] = await Promise.all([
     reportQuery ? reportQuery.maybeSingle() : Promise.resolve({ data: null } as any),
     kennelReportsQuery,
+    shopAnimalReportsQuery,
     kennelInspectionsQuery,
+    shopInspectionsQuery,
   ]);
 
   const c: any = report?.content;
   const kennelReports = kennelReportsRes.error ? [] : (kennelReportsRes.data ?? []) as any[];
-  const kennelInspections = kennelInspectionsRes.error ? [] : (kennelInspectionsRes.data ?? []) as any[];
+  const shopAnimalReports = shopAnimalReportsRes.error ? [] : (shopAnimalReportsRes.data ?? []) as any[];
+  const kennelInspections = [
+    ...(kennelInspectionsRes.error ? [] : (kennelInspectionsRes.data ?? []).map((item: any) => ({ ...item, source_type: "boarding" }))),
+    ...(shopInspectionsRes.error ? [] : (shopInspectionsRes.data ?? []).map((item: any) => ({ ...item, source_type: "shop", category: "shop_animals", walking_ok: null }))),
+  ];
   const kennelTotals = kennelReports.reduce((acc, report) => ({
     animals: acc.animals + Number(report.total_animals ?? 0),
     feeding: acc.feeding + Number(report.feeding_done ?? 0),
     cleaning: acc.cleaning + Number(report.cleaning_done ?? 0),
     walking: acc.walking + Number(report.walking_done ?? 0),
   }), { animals: 0, feeding: 0, cleaning: 0, walking: 0 });
+  const shopAnimalTotals = shopAnimalReports.reduce((acc, report) => ({
+    animals: acc.animals + Number(report.total_animals ?? 0),
+    feeding: acc.feeding + Number(report.feeding_done ?? 0),
+    cleaning: acc.cleaning + Number(report.cleaning_done ?? 0),
+  }), { animals: 0, feeding: 0, cleaning: 0 });
 
   return (
     <div>
@@ -68,7 +89,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
         </div>
       )}
 
-      {!c && kennelReports.length === 0 ? (
+      {!c && kennelReports.length === 0 && shopAnimalReports.length === 0 ? (
         <EmptyState message="No reports yet. The first report is delivered automatically at 22:15 tonight." />
       ) : (
         <div className="space-y-6">
@@ -152,9 +173,58 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
           </section>
 
           <section>
+            <h2 className="mb-3 text-lg font-semibold">Shop Animal Reports</h2>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard label="Submissions" value={shopAnimalReports.length} />
+              <StatCard label="Animals" value={shopAnimalTotals.animals} />
+              <StatCard label="Fed" value={shopAnimalTotals.feeding} />
+              <StatCard label="Cleaned" value={shopAnimalTotals.cleaning} />
+            </div>
+            {shopAnimalReportsRes.error ? (
+              <div className="card mt-3 p-4 text-sm text-amber-600">Run migration 021 to enable shop animal reports.</div>
+            ) : shopAnimalReports.length === 0 ? (
+              <div className="card mt-3 p-4 text-sm text-slate-400">No shop animal reports submitted for this date.</div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {shopAnimalReports.map((report: any) => (
+                  <details key={report.id} className="card p-4">
+                    <summary className="cursor-pointer">
+                      <span className="font-medium">Shop animals</span>
+                      <span className="text-sm text-slate-400"> · {report.submitted_by_name} · {fmtTime(report.submitted_at)}</span>
+                    </summary>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full min-w-[780px] text-sm">
+                        <thead>
+                          <tr>
+                            {["Animal", "Pet", "Qty", "Area", "Cage", "Health", "Care", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(report.rows ?? []).map((row: any, index: number) => (
+                            <tr key={`${report.id}-${index}`} className="table-row">
+                              <td className="td">{row.label ?? `Shop Animal ${index + 1}`}</td>
+                              <td className="td">{row.animal_name || "—"} <span className="text-xs text-slate-400">({row.pet_type}{row.breed ? ` · ${row.breed}` : ""})</span></td>
+                              <td className="td">{row.quantity ?? 1}</td>
+                              <td className="td">{row.display_area || "—"}</td>
+                              <td className="td">{[row.cage_color, row.cage_number].filter(Boolean).join(" / ") || "—"}</td>
+                              <td className="td">{row.health_status || "—"}</td>
+                              <td className="td text-xs">Feeding {row.feeding_done ? "done" : "pending"} · Cleaning {row.cleaning_done ? "done" : "pending"}</td>
+                              <td className="td">{row.report || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
             <h2 className="mb-3 text-lg font-semibold">Kennel Inspections</h2>
-            {kennelInspectionsRes.error ? (
-              <div className="card p-4 text-sm text-amber-600">Run migration 020 to enable kennel inspections.</div>
+            {kennelInspectionsRes.error || shopInspectionsRes.error ? (
+              <div className="card p-4 text-sm text-amber-600">Run migrations 020 and 021 to enable all inspection reports.</div>
             ) : kennelInspections.length === 0 ? (
               <div className="card p-4 text-sm text-slate-400">No admin inspections submitted for this date.</div>
             ) : (
@@ -162,17 +232,18 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                 <table className="w-full min-w-[900px] text-sm">
                   <thead>
                     <tr>
-                      {["Time", "Shift", "Inspector", "Pet", "Cage", "Checks", "Status", "Remarks", "Needs"].map((h) => <th key={h} className="th">{h}</th>)}
+                      {["Time", "Source", "Shift", "Inspector", "Pet", "Location", "Checks", "Status", "Remarks", "Needs"].map((h) => <th key={h} className="th">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {kennelInspections.map((item: any) => (
                       <tr key={item.id} className="table-row">
                         <td className="td">{fmtTime(item.created_at)}</td>
+                        <td className="td capitalize">{String(item.source_type).replace(/_/g, " ")}</td>
                         <td className="td">{item.inspection_shift}</td>
                         <td className="td">{item.inspector_name}</td>
                         <td className="td">{item.animal_name || "—"} <span className="text-xs text-slate-400">({item.pet_type})</span></td>
-                        <td className="td">{item.cage_number || "—"}</td>
+                        <td className="td">{[item.display_area, item.cage_number].filter(Boolean).join(" / ") || "—"}</td>
                         <td className="td text-xs">
                           Feeding {item.feeding_ok ? "ok" : "missed"} · Cleaning {item.cleaning_ok ? "ok" : "missed"}
                           {item.pet_type === "Dog" ? ` · Walking ${item.walking_ok ? "ok" : "missed"}` : ""}
