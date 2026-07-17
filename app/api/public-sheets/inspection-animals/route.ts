@@ -4,6 +4,10 @@ import { isInspectionPassword } from "@/lib/public-sheets-auth";
 
 export const dynamic = "force-dynamic";
 
+function isMissingTable(error: any) {
+  return error?.code === "42P01" || error?.code === "PGRST205";
+}
+
 function dateOffset(date: string, days: number) {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -44,8 +48,8 @@ export async function GET(req: Request) {
   ]);
 
   if (reportsError) return NextResponse.json({ error: reportsError.message }, { status: 500 });
-  if (inspectionsError && inspectionsError.code !== "42P01") return NextResponse.json({ error: inspectionsError.message }, { status: 500 });
-  if (previousError && previousError.code !== "42P01") return NextResponse.json({ error: previousError.message }, { status: 500 });
+  if (inspectionsError && !isMissingTable(inspectionsError)) return NextResponse.json({ error: inspectionsError.message }, { status: 500 });
+  if (previousError && !isMissingTable(previousError)) return NextResponse.json({ error: previousError.message }, { status: 500 });
 
   const latestByAnimal = new Map<string, any>();
   for (const item of inspections ?? []) {
