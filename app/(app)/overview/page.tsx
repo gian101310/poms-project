@@ -91,8 +91,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     .eq("report_date", date)
     .order("submitted_at", { ascending: false });
   if (selectedBranch) kennelReportsQuery = kennelReportsQuery.eq("store_id", selectedBranch);
+  let kennelInspectionsQuery = supabase.from("kennel_inspections")
+    .select("id, category, pet_type, animal_name, cage_number, inspector_name, inspection_shift, status, remarks, action_needed, created_at, store_id")
+    .eq("inspection_date", date)
+    .order("created_at", { ascending: false });
+  if (selectedBranch) kennelInspectionsQuery = kennelInspectionsQuery.eq("store_id", selectedBranch);
 
-  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes] = await Promise.all([
+  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes, kennelInspectionsRes] = await Promise.all([
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     instQuery,
     attQuery,
@@ -109,6 +114,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     groomingMonthQuery,
     boardingQuery,
     kennelReportsQuery,
+    kennelInspectionsQuery,
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -144,6 +150,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const boardingDueOut = activeBoarding.filter((b: any) => b.check_out_date === date).length;
   const boardingArrivals = activeBoarding.filter((b: any) => b.check_in_date === date).length;
   const kennelReports = kennelReportsRes.error ? [] : ((kennelReportsRes.data ?? []) as any[]);
+  const kennelInspections = kennelInspectionsRes.error ? [] : ((kennelInspectionsRes.data ?? []) as any[]);
+  const kennelInspectionIssues = kennelInspections.filter((item: any) => item.status !== "ok" || item.action_needed || item.remarks);
   const kennelTotals = kennelReports.reduce((acc, report) => ({
     animals: acc.animals + Number(report.total_animals ?? 0),
     feeding: acc.feeding + Number(report.feeding_done ?? 0),
@@ -238,6 +246,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="Grooming" value={`${groomingCompleted}/${groomingBooked}`} hint={`${groomingConfirmed} confirmed`} />
           <StatCard label="Boarding" value={activeBoarding.length} hint={`${boardingPetCount} pet(s)`} />
           <StatCard label="Kennel Reports" value={kennelReports.length} hint={`${kennelTotals.animals} animal(s)`} />
+          <StatCard label="Inspections" value={kennelInspections.length} hint={`${kennelInspectionIssues.length} issue(s)`} />
         </div>
       </div>
 
@@ -426,6 +435,43 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
                 <p className="mt-2 text-xs text-slate-500">
                   {report.total_animals} animal(s) · feeding {report.feeding_done} · cleaning {report.cleaning_done}
                   {report.walking_done ? ` · walking ${report.walking_done}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card mb-6 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Kennel inspection notes</p>
+            <p className="mt-1 text-sm text-slate-500">Admin inspection remarks for {date}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><p className="font-semibold">{kennelInspections.length}</p><p className="text-xs text-slate-400">Checks</p></div>
+            <div><p className="font-semibold">{kennelInspectionIssues.length}</p><p className="text-xs text-slate-400">Issues</p></div>
+          </div>
+        </div>
+        {kennelInspectionsRes.error ? (
+          <p className="text-sm text-amber-600">Run migration 020 to enable admin inspection notes.</p>
+        ) : kennelInspections.length === 0 ? (
+          <p className="text-sm text-slate-400">No admin inspection submitted yet.</p>
+        ) : (
+          <div className="grid gap-2 lg:grid-cols-2">
+            {kennelInspections.slice(0, 8).map((item: any) => (
+              <div key={item.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{item.animal_name || item.pet_type}</p>
+                    <p className="text-xs text-slate-400">
+                      {item.inspection_shift} · {item.inspector_name} · {fmtTime(item.created_at)}
+                    </p>
+                  </div>
+                  <Badge value={item.status} />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Cage {item.cage_number || "not set"}{item.remarks ? ` · ${item.remarks}` : ""}{item.action_needed ? ` · Needs: ${item.action_needed}` : ""}
                 </p>
               </div>
             ))}

@@ -22,6 +22,7 @@ export async function POST(req: Request) {
 
   const cleanRows = rows
     .map((row: any, index: number) => ({
+      row_id: String(row.row_id ?? `${Date.now()}-${index}`),
       label: `Boarding ${index + 1}`,
       pet_type: String(row.pet_type ?? "").trim(),
       animal_name: String(row.animal_name ?? "").trim(),
@@ -29,13 +30,18 @@ export async function POST(req: Request) {
       size: String(row.size ?? "").trim(),
       cage_color: String(row.cage_color ?? "").trim(),
       cage_number: String(row.cage_number ?? "").trim(),
+      client_number: String(row.client_number ?? "").trim(),
+      checkout_date: String(row.checkout_date ?? "").trim(),
+      payment_status: ["paid", "unpaid"].includes(String(row.payment_status ?? "").toLowerCase())
+        ? String(row.payment_status).toLowerCase()
+        : "unpaid",
       health_status: String(row.health_status ?? "").trim(),
       report: String(row.report ?? "").trim(),
       feeding_done: Boolean(row.feeding_done),
       cleaning_done: Boolean(row.cleaning_done),
       walking_done: Boolean(row.walking_done),
     }))
-    .filter((row: any) => row.pet_type || row.animal_name || row.breed || row.cage_number || row.report);
+    .filter((row: any) => row.pet_type || row.animal_name || row.breed || row.cage_number || row.client_number || row.checkout_date || row.report);
 
   if (cleanRows.length === 0) return NextResponse.json({ error: "Add at least one boarding animal." }, { status: 400 });
 
