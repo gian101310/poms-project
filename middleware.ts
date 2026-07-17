@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/kiosk", "/api/kiosk", "/api/setup", "/api/cron", "/api/auth/geocheck"];
+const PUBLIC_PATHS = ["/login", "/kiosk", "/public", "/api/kiosk", "/api/setup", "/api/cron", "/api/auth/geocheck"];
 const STAFF_ONLY_PATHS = ["/dashboard", "/checklist", "/handover", "/cashier", "/attendance", "/performance", "/break"];
 
 export async function middleware(request: NextRequest) {
