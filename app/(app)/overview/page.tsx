@@ -86,8 +86,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     .gte("check_out_date", date)
     .order("check_out_date", { ascending: true });
   if (selectedBranch) boardingQuery = boardingQuery.eq("store_id", selectedBranch);
+  let kennelReportsQuery = supabase.from("kennel_reports")
+    .select("id, report_date, category, submitted_by_name, submitted_at, total_animals, feeding_done, cleaning_done, walking_done, rows, store_id")
+    .eq("report_date", date)
+    .order("submitted_at", { ascending: false });
+  if (selectedBranch) kennelReportsQuery = kennelReportsQuery.eq("store_id", selectedBranch);
 
-  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes] = await Promise.all([
+  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes] = await Promise.all([
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     instQuery,
     attQuery,
@@ -103,6 +108,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     groomingQuery,
     groomingMonthQuery,
     boardingQuery,
+    kennelReportsQuery,
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -137,6 +143,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const boardingPetCount = activeBoarding.reduce((sum: number, b: any) => sum + (b.boarding_pets?.length ?? 0), 0);
   const boardingDueOut = activeBoarding.filter((b: any) => b.check_out_date === date).length;
   const boardingArrivals = activeBoarding.filter((b: any) => b.check_in_date === date).length;
+  const kennelReports = kennelReportsRes.error ? [] : ((kennelReportsRes.data ?? []) as any[]);
+  const kennelTotals = kennelReports.reduce((acc, report) => ({
+    animals: acc.animals + Number(report.total_animals ?? 0),
+    feeding: acc.feeding + Number(report.feeding_done ?? 0),
+    cleaning: acc.cleaning + Number(report.cleaning_done ?? 0),
+    walking: acc.walking + Number(report.walking_done ?? 0),
+  }), { animals: 0, feeding: 0, cleaning: 0, walking: 0 });
   const activeDeliveryMap = new Map(deliveryRows.filter((d: any) => !d.ended_at).map((d: any) => [d.profile_id, d]));
   const onBreak = breakSessions.filter((b: any) => !b.ended_at).length;
   const flaggedBreaks = breakSessions.filter((b: any) => b.flagged).length;
@@ -224,6 +237,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="Delivery Out" value={outForDelivery} />
           <StatCard label="Grooming" value={`${groomingCompleted}/${groomingBooked}`} hint={`${groomingConfirmed} confirmed`} />
           <StatCard label="Boarding" value={activeBoarding.length} hint={`${boardingPetCount} pet(s)`} />
+          <StatCard label="Kennel Reports" value={kennelReports.length} hint={`${kennelTotals.animals} animal(s)`} />
         </div>
       </div>
 
@@ -375,6 +389,46 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
               </div>
             ))}
             {activeBoarding.length > 8 && <p className="text-xs text-slate-400">+{activeBoarding.length - 8} more active boarding stay(s)</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="card mb-6 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Kennel report submissions</p>
+            <p className="mt-1 text-sm text-slate-500">Submitted from the public boarding sheet for {date}</p>
+          </div>
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div><p className="font-semibold">{kennelReports.length}</p><p className="text-xs text-slate-400">Reports</p></div>
+            <div><p className="font-semibold">{kennelTotals.animals}</p><p className="text-xs text-slate-400">Animals</p></div>
+            <div><p className="font-semibold">{kennelTotals.feeding}</p><p className="text-xs text-slate-400">Fed</p></div>
+            <div><p className="font-semibold">{kennelTotals.cleaning}</p><p className="text-xs text-slate-400">Cleaned</p></div>
+          </div>
+        </div>
+        {kennelReportsRes.error ? (
+          <p className="text-sm text-amber-600">Run migration 019 to enable submitted kennel reports.</p>
+        ) : kennelReports.length === 0 ? (
+          <p className="text-sm text-slate-400">No kennel reports submitted yet.</p>
+        ) : (
+          <div className="grid gap-2 lg:grid-cols-2">
+            {kennelReports.slice(0, 8).map((report: any) => (
+              <div key={report.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium capitalize">{String(report.category).replace(/_/g, " ")}</p>
+                    <p className="text-xs text-slate-400">
+                      {report.submitted_by_name} · {fmtTime(report.submitted_at)}
+                    </p>
+                  </div>
+                  <Badge value="submitted" />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {report.total_animals} animal(s) · feeding {report.feeding_done} · cleaning {report.cleaning_done}
+                  {report.walking_done ? ` · walking ${report.walking_done}` : ""}
+                </p>
+              </div>
+            ))}
           </div>
         )}
       </div>

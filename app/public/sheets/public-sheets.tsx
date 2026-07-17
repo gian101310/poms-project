@@ -1,12 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  CheckCircle2, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, ShieldCheck, Trash2,
+  CheckCircle2, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Trash2,
 } from "lucide-react";
 
-type PetType = "Dog" | "Cat" | "Rabbit" | "Guinea Pig" | "Bird" | "Reptile";
+type PetType = "Dog" | "Cat" | "Bird" | "Reptile" | "Rabbit" | "Guinea Pig" | "Hamster" | "Sugar Glider" | "Fancy Mouse" | "Rat" | "Degu";
+type BoardingCategory = "dogs" | "cats" | "birds" | "reptiles" | "small_animals";
+
+type StaffOption = {
+  id: string;
+  full_name: string;
+  employee_code: string;
+};
 
 type BoardingRow = {
   id: string;
@@ -47,7 +54,14 @@ type InspectionRow = {
   note: string;
 };
 
-const petTypes: PetType[] = ["Dog", "Cat", "Rabbit", "Guinea Pig", "Bird", "Reptile"];
+const petTypes: PetType[] = ["Dog", "Cat", "Bird", "Reptile", "Rabbit", "Guinea Pig", "Hamster", "Sugar Glider", "Fancy Mouse", "Rat", "Degu"];
+const boardingCategories: { id: BoardingCategory; label: string; petTypes: PetType[] }[] = [
+  { id: "dogs", label: "Dogs Boarding", petTypes: ["Dog"] },
+  { id: "cats", label: "Cats Boarding", petTypes: ["Cat"] },
+  { id: "birds", label: "Birds Boarding", petTypes: ["Bird"] },
+  { id: "reptiles", label: "Reptile Boarding", petTypes: ["Reptile"] },
+  { id: "small_animals", label: "Small Animals Boarding", petTypes: ["Rabbit", "Guinea Pig", "Hamster", "Sugar Glider", "Fancy Mouse", "Rat", "Degu"] },
+];
 const sizes = ["Toy", "Small", "Medium", "Large", "Giant"];
 const cageColors = ["Black", "Blue", "Brown", "Green", "Grey", "Orange", "Pink", "Purple", "Red", "Silver", "White", "Yellow"];
 const healthStatuses = ["Normal", "Needs observation", "Medication required", "Not eating", "Vomiting", "Diarrhea", "Limping", "Skin issue", "Eye/ear issue", "Emergency"];
@@ -95,6 +109,11 @@ const breedByType: Record<PetType, string[]> = {
     "Bearded Dragon", "Tarantula", "Chameleon", "Snake", "Ball Python", "Corn Snake", "King Snake",
     "Milk Snake", "Axolotl", "Sulcata Tortoise", "Greek Tortoise", "Red-Eared Slider", "Other Reptile",
   ],
+  Hamster: ["Syrian Hamster", "Dwarf Hamster", "Roborovski Hamster", "Chinese Hamster", "Winter White Hamster", "Other Hamster"],
+  "Sugar Glider": ["Classic Grey Sugar Glider", "Leucistic Sugar Glider", "Mosaic Sugar Glider", "White Face Sugar Glider", "Other Sugar Glider"],
+  "Fancy Mouse": ["Fancy Mouse", "Satin Mouse", "Rex Mouse", "Long Hair Mouse", "Other Mouse"],
+  Rat: ["Fancy Rat", "Dumbo Rat", "Rex Rat", "Hairless Rat", "Other Rat"],
+  Degu: ["Common Degu", "Blue Degu", "Sand Degu", "Other Degu"],
 };
 
 const colors = ["Black", "Brown", "White", "Cream", "Golden", "Grey", "Ginger", "Tan", "Tri-color", "Brindle", "Merle", "Spotted", "Mixed", "Other"];
@@ -103,10 +122,10 @@ function id() {
   return crypto.randomUUID();
 }
 
-function blankBoarding(): BoardingRow {
+function blankBoarding(petType: PetType = "Dog"): BoardingRow {
   return {
     id: id(),
-    petType: "Dog",
+    petType,
     animalName: "",
     breed: "",
     size: "Medium",
@@ -228,11 +247,95 @@ function Toolbar({
 }
 
 function BoardingSheet() {
-  const [rows, setRows] = useState<BoardingRow[]>([blankBoarding(), blankBoarding(), blankBoarding()]);
+  const [activeCategory, setActiveCategory] = useState<BoardingCategory>("dogs");
+  const [rowsByCategory, setRowsByCategory] = useState<Record<BoardingCategory, BoardingRow[]>>({
+    dogs: [blankBoarding("Dog"), blankBoarding("Dog"), blankBoarding("Dog")],
+    cats: [blankBoarding("Cat"), blankBoarding("Cat")],
+    birds: [blankBoarding("Bird"), blankBoarding("Bird")],
+    reptiles: [blankBoarding("Reptile"), blankBoarding("Reptile")],
+    small_animals: [blankBoarding("Rabbit"), blankBoarding("Guinea Pig")],
+  });
+  const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [submittedBy, setSubmittedBy] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [reportDate, setReportDate] = useState(today);
+  const activeConfig = boardingCategories.find((category) => category.id === activeCategory) ?? boardingCategories[0];
+  const rows = rowsByCategory[activeCategory];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/public-sheets/staff", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) setStaff(json.staff ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setStaff([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function update(rowId: string, patch: Partial<BoardingRow>) {
-    setRows((current) => current.map((row) => row.id === rowId ? { ...row, ...patch } : row));
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: current[activeCategory].map((row) => row.id === rowId ? { ...row, ...patch } : row),
+    }));
+  }
+
+  function addRow() {
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: [...current[activeCategory], blankBoarding(activeConfig.petTypes[0])],
+    }));
+  }
+
+  function removeRow(rowId: string) {
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: current[activeCategory].filter((item) => item.id !== rowId),
+    }));
+  }
+
+  async function submitReport() {
+    setSubmitting(true);
+    setMessage("");
+    const chosenStaff = staff.find((item) => item.id === submittedBy);
+    try {
+      const res = await fetch("/api/public-sheets/kennel-reports", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          category: activeCategory,
+          report_date: reportDate,
+          submitted_by_profile_id: chosenStaff?.id ?? null,
+          submitted_by_name: chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : "",
+          rows: rows.map((row) => ({
+            pet_type: row.petType,
+            animal_name: row.animalName,
+            breed: row.breed,
+            size: row.size,
+            cage_color: row.cageColor,
+            cage_number: row.cageNumber,
+            health_status: row.healthStatus,
+            report: row.report,
+            feeding_done: row.feedingDone,
+            cleaning_done: row.cleaningDone,
+            walking_done: activeCategory === "dogs" ? row.walkingDone : false,
+          })),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not submit report.");
+      setMessage(`Submitted ${activeConfig.label} at ${new Date(json.report.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+    } catch (e: any) {
+      setMessage(e.message ?? "Could not submit report.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -240,27 +343,46 @@ function BoardingSheet() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Boarding Animals Report Sheet</h2>
-          <p className="text-sm text-slate-500">Pet type controls the breed/type search list for each animal.</p>
+          <p className="text-sm text-slate-500">Submit kennel reports by boarding page; submissions appear in Command Center and Daily Reports.</p>
         </div>
-        <div className="flex gap-2 print:hidden">
-          <button className="btn-primary" onClick={() => setRows((current) => [...current, blankBoarding()])}><Plus size={15} /> Add animal</button>
+        <div className="flex flex-wrap gap-2 print:hidden">
+          <button className="btn-primary" onClick={addRow}><Plus size={15} /> Add boarding</button>
+          <button className="btn-primary" onClick={submitReport} disabled={submitting || !submittedBy}><Send size={15} /> {submitting ? "Submitting..." : "Submit report"}</button>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2 print:hidden">
+        {boardingCategories.map((category) => (
+          <button
+            key={category.id}
+            className={`btn !py-1.5 ${activeCategory === category.id ? "bg-brand-600 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"}`}
+            onClick={() => setActiveCategory(category.id)}
+          >
+            {category.label}
+          </button>
+        ))}
       </div>
 
       <div className="card mb-4 grid gap-3 p-4 md:grid-cols-4 print:grid-cols-4">
         <Field label="Branch"><input className="input" placeholder="Branch name" /></Field>
-        <Field label="Report date"><input className="input" type="date" defaultValue={today} /></Field>
-        <Field label="Prepared by"><input className="input" placeholder="Staff name" /></Field>
+        <Field label="Report date"><input className="input" type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} /></Field>
+        <Field label="Staff name">
+          <select className="input" value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)}>
+            <option value="">Choose Springs staff</option>
+            {staff.map((person) => <option key={person.id} value={person.id}>{person.full_name} ({person.employee_code})</option>)}
+          </select>
+        </Field>
         <Field label="Shift"><select className="input" defaultValue="Morning"><option>Morning</option><option>Afternoon</option><option>Closing</option></select></Field>
       </div>
+      {message && <div className={`card mb-4 p-3 text-sm ${message.startsWith("Submitted") ? "text-green-700" : "text-red-600"}`}>{message}</div>}
 
       <div className="space-y-3">
         {rows.map((row, index) => (
           <div key={row.id} className="card p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="font-semibold">Animal {index + 1}</p>
+              <p className="font-semibold">Boarding {index + 1}</p>
               {rows.length > 1 && (
-                <button className="btn-secondary !px-2 !py-1 print:hidden" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} title="Remove animal">
+                <button className="btn-secondary !px-2 !py-1 print:hidden" onClick={() => removeRow(row.id)} title="Remove boarding">
                   <Trash2 size={14} />
                 </button>
               )}
@@ -268,7 +390,7 @@ function BoardingSheet() {
             <div className="grid gap-3 md:grid-cols-4">
               <Field label="Pet type">
                 <select className="input" value={row.petType} onChange={(e) => update(row.id, { petType: e.target.value as PetType, breed: "" })}>
-                  {petTypes.map((item) => <option key={item}>{item}</option>)}
+                  {activeConfig.petTypes.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </Field>
               <Field label="Animal name"><input className="input" value={row.animalName} onChange={(e) => update(row.id, { animalName: e.target.value })} placeholder="Pet name" /></Field>
@@ -284,12 +406,12 @@ function BoardingSheet() {
             <div className="mt-4 flex flex-wrap gap-2 print:hidden">
               <DoneToggle label="Done feeding" pressed={row.feedingDone} onClick={() => update(row.id, { feedingDone: !row.feedingDone })} />
               <DoneToggle label="Done cleaning" pressed={row.cleaningDone} onClick={() => update(row.id, { cleaningDone: !row.cleaningDone })} />
-              <DoneToggle label="Walking done" pressed={row.walkingDone} onClick={() => update(row.id, { walkingDone: !row.walkingDone })} />
+              {activeCategory === "dogs" && <DoneToggle label="Walking done" pressed={row.walkingDone} onClick={() => update(row.id, { walkingDone: !row.walkingDone })} />}
             </div>
             <div className="mt-3 hidden grid-cols-3 gap-2 text-xs print:grid">
               <span>Feeding: {row.feedingDone ? "Done" : "Pending"}</span>
               <span>Cleaning: {row.cleaningDone ? "Done" : "Pending"}</span>
-              <span>Walking: {row.walkingDone ? "Done" : "Pending"}</span>
+              {activeCategory === "dogs" && <span>Walking: {row.walkingDone ? "Done" : "Pending"}</span>}
             </div>
           </div>
         ))}

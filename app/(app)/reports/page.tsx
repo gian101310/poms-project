@@ -2,7 +2,7 @@ import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, StatCard, Bar, EmptyState, Badge } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
-import { fmtDate } from "@/lib/tz";
+import { fmtDate, fmtTime, todayStr } from "@/lib/tz";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +19,29 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
   ]);
 
-  const selectedDate = searchParams.date ?? reports?.[0]?.report_date;
+  const selectedDate = searchParams.date ?? reports?.[0]?.report_date ?? todayStr();
   let reportQuery = selectedDate
     ? supabase.from("daily_reports").select("*").eq("report_date", selectedDate)
     : null;
   if (reportQuery && selectedBranch) reportQuery = reportQuery.eq("store_id", selectedBranch);
-  const { data: report } = reportQuery
-    ? await reportQuery.maybeSingle()
-    : { data: null };
+  let kennelReportsQuery = supabase.from("kennel_reports")
+    .select("id, category, submitted_by_name, submitted_at, total_animals, feeding_done, cleaning_done, walking_done, rows, store_id")
+    .eq("report_date", selectedDate)
+    .order("submitted_at", { ascending: false });
+  if (selectedBranch) kennelReportsQuery = kennelReportsQuery.eq("store_id", selectedBranch);
+  const [{ data: report }, kennelReportsRes] = await Promise.all([
+    reportQuery ? reportQuery.maybeSingle() : Promise.resolve({ data: null } as any),
+    kennelReportsQuery,
+  ]);
 
   const c: any = report?.content;
+  const kennelReports = kennelReportsRes.error ? [] : (kennelReportsRes.data ?? []) as any[];
+  const kennelTotals = kennelReports.reduce((acc, report) => ({
+    animals: acc.animals + Number(report.total_animals ?? 0),
+    feeding: acc.feeding + Number(report.feeding_done ?? 0),
+    cleaning: acc.cleaning + Number(report.cleaning_done ?? 0),
+    walking: acc.walking + Number(report.walking_done ?? 0),
+  }), { animals: 0, feeding: 0, cleaning: 0, walking: 0 });
 
   return (
     <div>
@@ -48,32 +61,87 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
         </div>
       )}
 
-      {!c ? (
+      {!c && kennelReports.length === 0 ? (
         <EmptyState message="No reports yet. The first report is delivered automatically at 22:15 tonight." />
       ) : (
         <div className="space-y-6">
-          <div className="card border-l-4 border-l-brand-500 p-4">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Highlights</p>
-            <ul className="space-y-1">
-              {(c.highlights ?? []).map((h: string, i: number) => (
-                <li key={i} className="text-sm">• {h}</li>
-              ))}
-            </ul>
-          </div>
+          {c && (
+            <div className="card border-l-4 border-l-brand-500 p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Highlights</p>
+              <ul className="space-y-1">
+                {(c.highlights ?? []).map((h: string, i: number) => (
+                  <li key={i} className="text-sm">• {h}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Task Completion" value={c.tasks?.completion_pct != null ? `${c.tasks.completion_pct}%` : "—"}
-              hint={`${c.tasks?.completed ?? 0}/${c.tasks?.total ?? 0} tasks`} />
-            <StatCard label="Verified" value={c.tasks?.verified ?? 0} />
-            <StatCard label="Overdue" value={c.tasks?.overdue ?? 0} />
-            <StatCard label="Welfare Records" value={c.welfare_records_today ?? 0} />
-            <StatCard label="Present / Late" value={`${c.attendance?.present ?? 0} / ${c.attendance?.late ?? 0}`} />
-            <StatCard label="Absent" value={c.attendance?.absent ?? 0} />
-            <StatCard label="Overtime Total" value={`${Math.round((c.attendance?.total_overtime_minutes ?? 0) / 60 * 10) / 10}h`} />
-            <StatCard label="New Incidents" value={c.incidents?.new_today ?? 0} />
-          </div>
+          {c && (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard label="Task Completion" value={c.tasks?.completion_pct != null ? `${c.tasks.completion_pct}%` : "—"}
+                hint={`${c.tasks?.completed ?? 0}/${c.tasks?.total ?? 0} tasks`} />
+              <StatCard label="Verified" value={c.tasks?.verified ?? 0} />
+              <StatCard label="Overdue" value={c.tasks?.overdue ?? 0} />
+              <StatCard label="Welfare Records" value={c.welfare_records_today ?? 0} />
+              <StatCard label="Present / Late" value={`${c.attendance?.present ?? 0} / ${c.attendance?.late ?? 0}`} />
+              <StatCard label="Absent" value={c.attendance?.absent ?? 0} />
+              <StatCard label="Overtime Total" value={`${Math.round((c.attendance?.total_overtime_minutes ?? 0) / 60 * 10) / 10}h`} />
+              <StatCard label="New Incidents" value={c.incidents?.new_today ?? 0} />
+            </div>
+          )}
 
-          {(c.departments ?? []).length > 0 && (
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Kennel Reports</h2>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard label="Submissions" value={kennelReports.length} />
+              <StatCard label="Animals" value={kennelTotals.animals} />
+              <StatCard label="Fed / Cleaned" value={`${kennelTotals.feeding} / ${kennelTotals.cleaning}`} />
+              <StatCard label="Walked" value={kennelTotals.walking} />
+            </div>
+            {kennelReportsRes.error ? (
+              <div className="card mt-3 p-4 text-sm text-amber-600">Run migration 019 to enable kennel reports.</div>
+            ) : kennelReports.length === 0 ? (
+              <div className="card mt-3 p-4 text-sm text-slate-400">No kennel reports submitted for this date.</div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {kennelReports.map((report: any) => (
+                  <details key={report.id} className="card p-4">
+                    <summary className="cursor-pointer">
+                      <span className="font-medium capitalize">{String(report.category).replace(/_/g, " ")}</span>
+                      <span className="text-sm text-slate-400"> · {report.submitted_by_name} · {fmtTime(report.submitted_at)}</span>
+                    </summary>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full min-w-[780px] text-sm">
+                        <thead>
+                          <tr>
+                            {["Boarding", "Pet", "Breed / type", "Cage", "Health", "Care", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(report.rows ?? []).map((row: any, index: number) => (
+                            <tr key={`${report.id}-${index}`} className="table-row">
+                              <td className="td">{row.label ?? `Boarding ${index + 1}`}</td>
+                              <td className="td">{row.animal_name || "—"} <span className="text-xs text-slate-400">({row.pet_type})</span></td>
+                              <td className="td">{row.breed || "—"}</td>
+                              <td className="td">{[row.cage_color, row.cage_number].filter(Boolean).join(" / ") || "—"}</td>
+                              <td className="td">{row.health_status || "—"}</td>
+                              <td className="td text-xs">
+                                Feeding {row.feeding_done ? "done" : "pending"} · Cleaning {row.cleaning_done ? "done" : "pending"}
+                                {row.pet_type === "Dog" ? ` · Walking ${row.walking_done ? "done" : "pending"}` : ""}
+                              </td>
+                              <td className="td">{row.report || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {c && (c.departments ?? []).length > 0 && (
             <section>
               <h2 className="mb-3 text-lg font-semibold">Departments</h2>
               <div className="card space-y-3 p-4">
@@ -90,7 +158,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
             </section>
           )}
 
-          <div className="grid gap-6 md:grid-cols-2">
+          {c && <div className="grid gap-6 md:grid-cols-2">
             {(c.unfinished_by ?? []).length > 0 && (
               <section>
                 <h2 className="mb-3 text-lg font-semibold">Unfinished Tasks</h2>
@@ -116,7 +184,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                 )}
               </div>
             </section>
-          </div>
+          </div>}
         </div>
       )}
     </div>
