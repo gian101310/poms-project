@@ -31,17 +31,35 @@ export async function POST(req: Request) {
       cage_color: String(row.cage_color ?? "").trim(),
       cage_number: String(row.cage_number ?? "").trim(),
       client_number: String(row.client_number ?? "").trim(),
+      check_in_date: String(row.check_in_date ?? "").trim(),
       checkout_date: String(row.checkout_date ?? "").trim(),
-      payment_status: ["paid", "unpaid"].includes(String(row.payment_status ?? "").toLowerCase())
+      payment_status: ["fully paid", "partially paid", "unpaid", "paid"].includes(String(row.payment_status ?? "").toLowerCase())
         ? String(row.payment_status).toLowerCase()
         : "unpaid",
+      boarding_days: Number.isFinite(Number(row.boarding_days)) ? Number(row.boarding_days) : 0,
+      paid_days_mode: ["full", "half", "custom"].includes(String(row.paid_days_mode ?? "").toLowerCase())
+        ? String(row.paid_days_mode).toLowerCase()
+        : "full",
+      paid_days: Number.isFinite(Number(row.paid_days)) ? Number(row.paid_days) : 0,
+      extension_checkout_date: String(row.extension_checkout_date ?? "").trim(),
+      extension_days: Number.isFinite(Number(row.extension_days)) ? Number(row.extension_days) : 0,
+      extension_payment_status: ["fully paid", "partially paid", "unpaid", "paid"].includes(String(row.extension_payment_status ?? "").toLowerCase())
+        ? String(row.extension_payment_status).toLowerCase()
+        : "unpaid",
+      invoice_numbers: String(row.invoice_numbers ?? "").trim(),
+      extension_invoice_numbers: String(row.extension_invoice_numbers ?? "").trim(),
+      overdue_days: Number.isFinite(Number(row.overdue_days)) ? Number(row.overdue_days) : 0,
+      misc_note: String(row.misc_note ?? "").trim(),
+      brought_items: typeof row.brought_items === "object" && row.brought_items !== null ? row.brought_items : {},
       health_status: String(row.health_status ?? "").trim(),
       report: String(row.report ?? "").trim(),
       feeding_done: Boolean(row.feeding_done),
       cleaning_done: Boolean(row.cleaning_done),
       walking_done: Boolean(row.walking_done),
+      last_updated_by: String(row.last_updated_by ?? "").trim(),
+      last_updated_at: String(row.last_updated_at ?? "").trim(),
     }))
-    .filter((row: any) => row.pet_type || row.animal_name || row.breed || row.cage_number || row.client_number || row.checkout_date || row.report);
+    .filter((row: any) => row.pet_type || row.animal_name || row.breed || row.cage_number || row.client_number || row.check_in_date || row.checkout_date || row.report);
 
   if (cleanRows.length === 0) return NextResponse.json({ error: "Add at least one boarding animal." }, { status: 400 });
 

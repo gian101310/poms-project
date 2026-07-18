@@ -156,10 +156,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                       <span className="text-sm text-slate-400"> · {report.submitted_by_name} · {fmtTime(report.submitted_at)}</span>
                     </summary>
                     <div className="mt-3 overflow-x-auto">
-                      <table className="w-full min-w-[780px] text-sm">
+                      <table className="w-full min-w-[1200px] text-sm">
                         <thead>
                           <tr>
-                            {["Boarding", "Pet", "Client", "Checkout", "Payment", "Breed / type", "Cage", "Health", "Care", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
+                            {["Boarding", "Pet", "Client", "Dates", "Days", "Payment", "Invoices", "Extension", "Breed / type", "Cage", "Health", "Care", "Misc / Updated", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
                           </tr>
                         </thead>
                         <tbody>
@@ -168,14 +168,31 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                               <td className="td">{row.label ?? `Boarding ${index + 1}`}</td>
                               <td className="td">{row.animal_name || "—"} <span className="text-xs text-slate-400">({row.pet_type})</span></td>
                               <td className="td">{row.client_number || "—"}</td>
-                              <td className="td">{row.checkout_date || "—"}</td>
+                              <td className="td">{row.check_in_date || "—"} to {row.checkout_date || "—"}</td>
+                              <td className="td text-xs">{row.boarding_days ?? 0} total · {row.paid_days ?? 0} paid · {row.overdue_days ?? 0} overdue</td>
                               <td className="td capitalize">{row.payment_status || "unpaid"}</td>
+                              <td className="td text-xs">{row.invoice_numbers || "—"}</td>
+                              <td className="td text-xs">
+                                {row.extension_checkout_date ? `${row.extension_checkout_date} · ${row.extension_days ?? 0} day(s) · ${row.extension_payment_status || "unpaid"}${row.extension_invoice_numbers ? ` · ${row.extension_invoice_numbers}` : ""}` : "—"}
+                              </td>
                               <td className="td">{row.breed || "—"}</td>
                               <td className="td">{[row.cage_color, row.cage_number].filter(Boolean).join(" / ") || "—"}</td>
                               <td className="td">{row.health_status || "—"}</td>
                               <td className="td text-xs">
                                 Feeding {row.feeding_done ? "done" : "pending"} · Cleaning {row.cleaning_done ? "done" : "pending"}
                                 {row.pet_type === "Dog" ? ` · Walking ${row.walking_done ? "done" : "pending"}` : ""}
+                              </td>
+                              <td className="td text-xs">
+                                {row.misc_note || "—"}
+                                {row.brought_items ? ` · Items: ${[
+                                  row.brought_items.cage ? "cage" : "",
+                                  row.brought_items.food ? "food" : "",
+                                  row.brought_items.toys ? "toys" : "",
+                                  row.brought_items.bed ? "bed" : "",
+                                  row.brought_items.medicine ? "medicine" : "",
+                                  row.brought_items.other ? "other" : "",
+                                ].filter(Boolean).join(", ") || "none"}${row.brought_items.note ? ` (${row.brought_items.note})` : ""}` : ""}
+                                {row.last_updated_by ? ` · Updated by ${row.last_updated_by}` : ""}
                               </td>
                               <td className="td">{row.report || "—"}</td>
                             </tr>

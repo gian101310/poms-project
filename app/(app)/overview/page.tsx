@@ -529,6 +529,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
                   {report.total_animals} animal(s) · feeding {report.feeding_done} · cleaning {report.cleaning_done}
                   {report.walking_done ? ` · walking ${report.walking_done}` : ""}
                 </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {(report.rows ?? []).map((row: any) => {
+                    const overdue = Number(row.overdue_days ?? 0);
+                    const updated = row.last_updated_by ? `updated by ${row.last_updated_by}` : "";
+                    return [row.animal_name, overdue ? `${overdue} overdue day(s)` : "", updated].filter(Boolean).join(" · ");
+                  }).filter(Boolean).slice(0, 3).join(" | ") || "No boarding detail"}
+                </p>
               </div>
             ))}
           </div>

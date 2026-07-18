@@ -27,13 +27,30 @@ type BoardingRow = {
   size: string;
   cageColor: string;
   cageNumber: string;
+  checkInDate: string;
   checkoutDate: string;
   paymentStatus: string;
+  paidDaysMode: string;
+  customPaidDays: string;
+  extensionCheckoutDate: string;
+  extensionPaymentStatus: string;
+  invoiceNumbers: string;
+  extensionInvoiceNumbers: string;
+  miscNote: string;
+  broughtCage: boolean;
+  broughtFood: boolean;
+  broughtToys: boolean;
+  broughtBed: boolean;
+  broughtMedicine: boolean;
+  broughtOther: boolean;
+  belongingsNote: string;
   healthStatus: string;
   report: string;
   feedingDone: boolean;
   cleaningDone: boolean;
   walkingDone: boolean;
+  lastUpdatedBy: string;
+  lastUpdatedAt: string;
 };
 
 type GroomingRow = {
@@ -82,8 +99,21 @@ type KennelAnimal = {
   cage_number: string;
   display_area?: string;
   quantity?: number;
+  check_in_date?: string;
   checkout_date: string;
   payment_status: string;
+  boarding_days?: number;
+  paid_days?: number;
+  overdue_days?: number;
+  extension_checkout_date?: string;
+  extension_days?: number;
+  extension_payment_status?: string;
+  invoice_numbers?: string;
+  extension_invoice_numbers?: string;
+  misc_note?: string;
+  brought_items?: Record<string, any>;
+  last_updated_by?: string;
+  last_updated_at?: string;
   health_status: string;
   report: string;
   groomer_name?: string;
@@ -134,7 +164,8 @@ const cageColors = ["Black", "Blue", "Brown", "Green", "Grey", "Orange", "Pink",
 const healthStatuses = ["Normal", "Needs observation", "Medication required", "Not eating", "Vomiting", "Diarrhea", "Limping", "Skin issue", "Eye/ear issue", "Emergency"];
 const groomingStatuses = ["Booked", "Confirmed", "Arrived", "In progress", "Completed", "Paid", "Unpaid", "No show", "Cancelled", "Needs follow-up"];
 const groomers = ["Alfred", "Alex", "Chris", "Garry"];
-const paymentStatuses = ["unpaid", "paid"];
+const paymentStatuses = ["fully paid", "partially paid", "unpaid"];
+const paidDaysModes = ["full", "half", "custom"];
 const displayAreas = ["Bird room", "Small animal wall", "Reptile rack", "Fish wall", "Insect shelf", "Front display", "Quarantine", "Other"];
 
 const breedByType: Record<PetType, string[]> = {
@@ -208,14 +239,46 @@ function blankBoarding(petType: PetType = "Dog"): BoardingRow {
     size: "Medium",
     cageColor: "",
     cageNumber: "",
+    checkInDate: "",
     checkoutDate: "",
     paymentStatus: "unpaid",
+    paidDaysMode: "full",
+    customPaidDays: "",
+    extensionCheckoutDate: "",
+    extensionPaymentStatus: "unpaid",
+    invoiceNumbers: "",
+    extensionInvoiceNumbers: "",
+    miscNote: "",
+    broughtCage: false,
+    broughtFood: false,
+    broughtToys: false,
+    broughtBed: false,
+    broughtMedicine: false,
+    broughtOther: false,
+    belongingsNote: "",
     healthStatus: "Normal",
     report: "",
     feedingDone: false,
     cleaningDone: false,
     walkingDone: false,
+    lastUpdatedBy: "",
+    lastUpdatedAt: "",
   };
+}
+
+function diffDays(start: string, end: string) {
+  if (!start || !end) return 0;
+  const startTime = new Date(`${start}T00:00:00Z`).getTime();
+  const endTime = new Date(`${end}T00:00:00Z`).getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) return 0;
+  return Math.max(1, Math.ceil((endTime - startTime) / 86400000));
+}
+
+function paidDaysFor(row: BoardingRow) {
+  const days = diffDays(row.checkInDate, row.checkoutDate);
+  if (row.paidDaysMode === "full") return days;
+  if (row.paidDaysMode === "half") return Math.max(0.5, days / 2);
+  return Math.max(0, Number(row.customPaidDays) || 0);
 }
 
 function blankGrooming(): GroomingRow {
@@ -385,6 +448,27 @@ function BoardingSheet() {
     }));
   }
 
+  function markAllCompleted(rowId: string) {
+    update(rowId, {
+      feedingDone: true,
+      cleaningDone: true,
+      walkingDone: activeCategory === "dogs",
+    });
+  }
+
+  function markUpdated(rowId: string) {
+    const chosenStaff = staff.find((item) => item.id === submittedBy);
+    if (!chosenStaff) {
+      setMessage("Choose staff name before marking an update.");
+      return;
+    }
+    update(rowId, {
+      lastUpdatedBy: `${chosenStaff.full_name} (${chosenStaff.employee_code})`,
+      lastUpdatedAt: new Date().toISOString(),
+    });
+    setMessage("Pet file marked updated. Submit report to save it.");
+  }
+
   async function submitReport() {
     setSubmitting(true);
     setMessage("");
@@ -407,13 +491,35 @@ function BoardingSheet() {
             cage_color: row.cageColor,
             cage_number: row.cageNumber,
             client_number: row.clientNumber,
+            check_in_date: row.checkInDate,
             checkout_date: row.checkoutDate,
             payment_status: row.paymentStatus,
+            boarding_days: diffDays(row.checkInDate, row.checkoutDate),
+            paid_days_mode: row.paidDaysMode,
+            paid_days: paidDaysFor(row),
+            extension_checkout_date: row.extensionCheckoutDate,
+            extension_days: diffDays(row.checkoutDate, row.extensionCheckoutDate),
+            extension_payment_status: row.extensionPaymentStatus,
+            invoice_numbers: row.invoiceNumbers,
+            extension_invoice_numbers: row.extensionInvoiceNumbers,
+            overdue_days: Math.max(0, diffDays(row.checkInDate, row.checkoutDate) - paidDaysFor(row)),
+            misc_note: row.miscNote,
+            brought_items: {
+              cage: row.broughtCage,
+              food: row.broughtFood,
+              toys: row.broughtToys,
+              bed: row.broughtBed,
+              medicine: row.broughtMedicine,
+              other: row.broughtOther,
+              note: row.belongingsNote,
+            },
             health_status: row.healthStatus,
             report: row.report,
             feeding_done: row.feedingDone,
             cleaning_done: row.cleaningDone,
             walking_done: activeCategory === "dogs" ? row.walkingDone : false,
+            last_updated_by: row.lastUpdatedBy || (chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : ""),
+            last_updated_at: row.lastUpdatedAt,
           })),
         }),
       });
@@ -466,7 +572,12 @@ function BoardingSheet() {
       {message && <div className={`card mb-4 p-3 text-sm ${message.startsWith("Submitted") ? "text-green-700" : "text-red-600"}`}>{message}</div>}
 
       <div className="space-y-3">
-        {rows.map((row, index) => (
+        {rows.map((row, index) => {
+          const boardingDays = diffDays(row.checkInDate, row.checkoutDate);
+          const paidDays = paidDaysFor(row);
+          const extensionDays = diffDays(row.checkoutDate, row.extensionCheckoutDate);
+          const overdueDays = Math.max(0, boardingDays - paidDays);
+          return (
           <div key={row.id} className="card p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold">Boarding {index + 1}</p>
@@ -490,23 +601,65 @@ function BoardingSheet() {
               <Field label="Size"><select className="input" value={row.size} onChange={(e) => update(row.id, { size: e.target.value })}>{sizes.map((item) => <option key={item}>{item}</option>)}</select></Field>
               <Field label="Cage color"><select className="input" value={row.cageColor} onChange={(e) => update(row.id, { cageColor: e.target.value })}><option value="">Select color</option>{cageColors.map((item) => <option key={item}>{item}</option>)}</select></Field>
               <Field label="Cage number"><input className="input" value={row.cageNumber} onChange={(e) => update(row.id, { cageNumber: e.target.value })} placeholder="Cage no." /></Field>
+              <Field label="Check-in date"><input className="input" type="date" value={row.checkInDate} onChange={(e) => update(row.id, { checkInDate: e.target.value })} /></Field>
               <Field label="Checkout date"><input className="input" type="date" value={row.checkoutDate} onChange={(e) => update(row.id, { checkoutDate: e.target.value })} /></Field>
+              <Field label="Number of days"><input className="input" value={boardingDays ? `${boardingDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
+              <Field label="Invoice no."><input className="input" value={row.invoiceNumbers} onChange={(e) => update(row.id, { invoiceNumbers: e.target.value })} placeholder="One or more invoices" /></Field>
               <Field label="Payment"><select className="input" value={row.paymentStatus} onChange={(e) => update(row.id, { paymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+              <Field label="Paid days">
+                <select className="input" value={row.paidDaysMode} onChange={(e) => update(row.id, { paidDaysMode: e.target.value })}>
+                  {paidDaysModes.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </Field>
+              {row.paidDaysMode === "custom" && <Field label="Custom paid days"><input className="input" type="number" min="0" step="0.5" value={row.customPaidDays} onChange={(e) => update(row.id, { customPaidDays: e.target.value })} /></Field>}
+              <Field label="Paid / overdue days"><input className="input" value={boardingDays ? `${paidDays} paid / ${overdueDays} overdue` : ""} readOnly placeholder="Auto" /></Field>
+              <Field label="Extension checkout"><input className="input" type="date" value={row.extensionCheckoutDate} onChange={(e) => update(row.id, { extensionCheckoutDate: e.target.value })} /></Field>
+              <Field label="Extension days"><input className="input" value={extensionDays ? `${extensionDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
+              <Field label="Extension payment"><select className="input" value={row.extensionPaymentStatus} onChange={(e) => update(row.id, { extensionPaymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+              <Field label="Extension invoice no."><input className="input" value={row.extensionInvoiceNumbers} onChange={(e) => update(row.id, { extensionInvoiceNumbers: e.target.value })} placeholder="Multiple extension invoices" /></Field>
               <Field label="Health status"><select className="input" value={row.healthStatus} onChange={(e) => update(row.id, { healthStatus: e.target.value })}>{healthStatuses.map((item) => <option key={item}>{item}</option>)}</select></Field>
               <Field label="Health status report"><input className="input" value={row.report} onChange={(e) => update(row.id, { report: e.target.value })} placeholder="Short report" /></Field>
+              <Field label="Misc / extra charge note"><input className="input" value={row.miscNote} onChange={(e) => update(row.id, { miscNote: e.target.value })} placeholder="Food ran out, extra charge, etc." /></Field>
+            </div>
+            <div className="mt-4 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Brought with pet</p>
+              <div className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                {[
+                  ["broughtCage", "Cage"],
+                  ["broughtFood", "Food"],
+                  ["broughtToys", "Toys"],
+                  ["broughtBed", "Bed"],
+                  ["broughtMedicine", "Medicine"],
+                  ["broughtOther", "Other"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2">
+                    <input type="checkbox" checked={Boolean(row[key as keyof BoardingRow])} onChange={(e) => update(row.id, { [key]: e.target.checked } as Partial<BoardingRow>)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <input className="input mt-3" value={row.belongingsNote} onChange={(e) => update(row.id, { belongingsNote: e.target.value })} placeholder="Small note for items brought with the pet" />
             </div>
             <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+              <button type="button" className="btn-secondary" onClick={() => markAllCompleted(row.id)}><CheckCircle2 size={15} /> All completed</button>
               <DoneToggle label="Done feeding" pressed={row.feedingDone} onClick={() => update(row.id, { feedingDone: !row.feedingDone })} />
               <DoneToggle label="Done cleaning" pressed={row.cleaningDone} onClick={() => update(row.id, { cleaningDone: !row.cleaningDone })} />
               {activeCategory === "dogs" && <DoneToggle label="Walking done" pressed={row.walkingDone} onClick={() => update(row.id, { walkingDone: !row.walkingDone })} />}
+              <button type="button" className="btn-secondary" onClick={() => markUpdated(row.id)}>Mark updated</button>
             </div>
+            {(row.lastUpdatedBy || row.lastUpdatedAt) && (
+              <p className="mt-2 text-xs text-slate-500">
+                Last updated by {row.lastUpdatedBy || "staff"} {row.lastUpdatedAt ? `at ${new Date(row.lastUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+              </p>
+            )}
             <div className="mt-3 hidden grid-cols-3 gap-2 text-xs print:grid">
               <span>Feeding: {row.feedingDone ? "Done" : "Pending"}</span>
               <span>Cleaning: {row.cleaningDone ? "Done" : "Pending"}</span>
               {activeCategory === "dogs" && <span>Walking: {row.walkingDone ? "Done" : "Pending"}</span>}
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
     </section>
   );
@@ -965,9 +1118,23 @@ function InspectionSheet() {
                       {String(animal.category).replace(/_/g, " ")} · {animal.breed || "No breed"} · {[animal.display_area, animal.cage_color, animal.cage_number].filter(Boolean).join(" / ") || "location not set"}
                     </p>
                     {animal.source_type === "boarding" ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Client {animal.client_number || "not set"} · checkout {animal.checkout_date || "not set"} · payment {animal.payment_status || "unpaid"}
-                      </p>
+                      <>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Client {animal.client_number || "not set"} · {animal.check_in_date || "no check-in"} to {animal.checkout_date || "no checkout"} · {animal.boarding_days ?? 0} day(s)
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Payment {animal.payment_status || "unpaid"} · paid {animal.paid_days ?? 0} day(s) · overdue {animal.overdue_days ?? 0} day(s)
+                          {animal.extension_checkout_date ? ` · extension to ${animal.extension_checkout_date} (${animal.extension_days ?? 0} day/s, ${animal.extension_payment_status || "unpaid"})` : ""}
+                        </p>
+                        {(animal.invoice_numbers || animal.extension_invoice_numbers || animal.misc_note || animal.last_updated_by) && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {animal.invoice_numbers ? `Invoice ${animal.invoice_numbers}` : ""}
+                            {animal.extension_invoice_numbers ? ` · Ext invoice ${animal.extension_invoice_numbers}` : ""}
+                            {animal.misc_note ? ` · ${animal.misc_note}` : ""}
+                            {animal.last_updated_by ? ` · Updated by ${animal.last_updated_by}` : ""}
+                          </p>
+                        )}
+                      </>
                     ) : animal.source_type === "grooming" ? (
                       <p className="mt-1 text-xs text-slate-500">
                         Groomer {animal.groomer_name || "not set"} · client {animal.client_name || "not set"} · phone {animal.client_number || "not set"} · status {animal.grooming_status || "booked"} · payment {animal.payment_status || "unpaid"}
