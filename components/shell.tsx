@@ -42,6 +42,7 @@ const managerExtra: NavItem[] = [
   { href: "/qr", label: "Shop QR", icon: QrCode },
   { href: "/search", label: "Search", icon: SearchIcon },
   { href: "/audit", label: "Audit Trail", icon: History },
+  { href: "/admin/templates", label: "Checklist Templates", icon: ListChecks },
 ];
 
 const adminExtra: NavItem[] = [
@@ -49,7 +50,6 @@ const adminExtra: NavItem[] = [
   { href: "/admin/branches", label: "Branches", icon: Store },
   { href: "/admin/departments", label: "Departments", icon: Building2 },
   { href: "/admin/shifts", label: "Shifts & Schedules", icon: Clock3 },
-  { href: "/admin/templates", label: "Checklist Templates", icon: ListChecks },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

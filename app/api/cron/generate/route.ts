@@ -27,6 +27,15 @@ export async function GET(req: Request) {
   const today = todayStr();
   const summary = { date: today, employees: 0, instances: 0, tasks: 0, skipped: 0, errors: [] as string[] };
 
+  const { data: schedulingSetting } = await admin.from("app_settings")
+    .select("value")
+    .eq("key", "task_scheduling_enabled")
+    .limit(1)
+    .maybeSingle();
+  if (schedulingSetting?.value !== true) {
+    return NextResponse.json({ ...summary, note: "Automatic task scheduling is turned off." });
+  }
+
   // Holiday? Skip generation entirely.
   const { data: holiday } = await admin.from("holidays").select("id").eq("date", today).limit(1);
   if (holiday?.length) return NextResponse.json({ ...summary, note: "Holiday — no checklists generated." });

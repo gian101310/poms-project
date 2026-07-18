@@ -2,6 +2,8 @@ import { requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Table } from "@/components/ui";
 import { SettingRow } from "./setting-forms";
+import { ProjectControls } from "./admin-control-forms";
+import { getProjectControlSettings } from "@/lib/project-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +31,16 @@ const DESCRIPTIONS: Record<string, string> = {
 export default async function SettingsPage() {
   await requireRole(["super_admin"]);
   const supabase = createClient();
-  const { data: settings } = await supabase.from("app_settings").select("*, stores(name)").order("key");
+  const [{ data: settings }, projectControls] = await Promise.all([
+    supabase.from("app_settings").select("*, stores(name)").order("key"),
+    getProjectControlSettings(),
+  ]);
 
   return (
     <div>
       <PageHeader title="Company Settings"
         subtitle="Timings, security, and thresholds — everything configurable lives here. Values are JSON." />
+      <ProjectControls projectEnabled={projectControls.projectEnabled} schedulingEnabled={projectControls.taskSchedulingEnabled} />
       <Table headers={["Branch", "Setting", "Value", ""]}>
         {(settings ?? []).map((s: any) => (
           <SettingRow key={s.id} setting={s} description={DESCRIPTIONS[s.key]} />

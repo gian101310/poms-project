@@ -1,8 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createTemplate, addTemplateTask, removeTemplateTask } from "./actions";
-import { Plus, Trash2 } from "lucide-react";
+import { archiveTemplate, createTemplate, addTemplateTask, deleteTemplate, removeTemplateTask } from "./actions";
+import { Archive, Plus, Trash2 } from "lucide-react";
 
 const TAGS = ["low_stock", "maintenance", "animal_health", "cleaning", "customer_concern", "equipment"];
 
@@ -130,6 +130,43 @@ export function TaskEditor({ templateId, tasks }: { templateId: string; tasks: a
         </div>
         <button className="btn-primary" disabled={pending}>{pending ? "Adding…" : "Add Task"}</button>
       </form>
+    </div>
+  );
+}
+
+export function TemplateActions({ template }: { template: any }) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  return (
+    <div className="flex flex-wrap gap-2">
+      {template.is_active && (
+        <button
+          className="btn-secondary"
+          disabled={pending}
+          onClick={() => start(async () => {
+            if (!confirm("Archive this template? It will stop generating new tasks.")) return;
+            const result = await archiveTemplate(template.id);
+            if (result?.error) alert(result.error);
+            router.refresh();
+          })}
+        >
+          <Archive size={15} /> Archive
+        </button>
+      )}
+      <button
+        className="btn-secondary"
+        disabled={pending}
+        onClick={() => start(async () => {
+          if (!confirm("Delete this template if unused? If it already has generated history, it will be archived instead.")) return;
+          const result = await deleteTemplate(template.id);
+          if (result?.error) alert(result.error);
+          else if (result?.archived) alert("Template has generated history, so it was archived instead of deleted.");
+          router.push("/admin/templates");
+          router.refresh();
+        })}
+      >
+        <Trash2 size={15} /> Delete
+      </button>
     </div>
   );
 }

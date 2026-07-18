@@ -19,7 +19,7 @@ export default async function Dashboard() {
   const [instancesRes, attendanceRes, notifRes, groomingTodayRes, groomingMonthRes, storeRes] = await Promise.all([
     supabase.from("checklist_instances")
       .select("id, status, work_date, departments(name), shifts(name), checklist_tasks(id, status)")
-      .eq("profile_id", profile.id).eq("work_date", today),
+      .eq("profile_id", profile.id).eq("work_date", today).eq("status", "open"),
     supabase.from("attendance_records").select("*").eq("profile_id", profile.id).eq("work_date", today).maybeSingle(),
     supabase.from("notifications").select("id, title, body, link, created_at")
       .eq("recipient_id", profile.id).is("read_at", null).order("created_at", { ascending: false }).limit(5),

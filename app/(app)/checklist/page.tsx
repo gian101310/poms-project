@@ -16,6 +16,7 @@ export default async function ChecklistPage() {
     .select("id, status, work_date, departments(name), shifts(name), checklist_tasks(*, template_tasks(estimated_minutes))")
     .eq("profile_id", profile.id)
     .eq("work_date", today)
+    .eq("status", "open")
     .order("generated_at");
 
   return (

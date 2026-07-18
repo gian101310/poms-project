@@ -25,7 +25,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
         departments!inner(id, name, store_id), shifts(name),
         profiles!checklist_instances_profile_id_fkey(id, full_name, employee_code),
         checklist_tasks(id, title, status, priority, tags, is_overdue, employee_remarks, supervisor_remarks, completed_at, duration_minutes, blocked, blocked_reason)`)
-      .eq("work_date", date);
+      .eq("work_date", date)
+      .eq("status", "open");
   let attQuery = supabase.from("attendance_records").select("profile_id, status, late_minutes, flagged, profiles!inner(store_id)").eq("work_date", date);
   let incQuery = selectedBranch
     ? supabase.from("incident_reports").select("id, departments!inner(store_id)", { count: "exact", head: true }).eq("departments.store_id", selectedBranch)

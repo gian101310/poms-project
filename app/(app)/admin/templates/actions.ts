@@ -5,7 +5,7 @@ import { defaultTasksFor } from "@/lib/default-checklists";
 import { revalidatePath } from "next/cache";
 
 export async function createTemplate(fd: FormData) {
-  const profile = await requireRole(["super_admin"]);
+  const profile = await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const departmentId = String(fd.get("department_id"));
   const shiftId = String(fd.get("shift_id"));
@@ -71,7 +71,7 @@ const RECURRENCE_MAP: Record<string, any> = {
 };
 
 export async function addTemplateTask(templateId: string, fd: FormData) {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
 
   const { count } = await supabase.from("template_tasks")
@@ -93,9 +93,36 @@ export async function addTemplateTask(templateId: string, fd: FormData) {
 }
 
 export async function removeTemplateTask(taskId: string) {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const { error } = await supabase.from("template_tasks").delete().eq("id", taskId);
+  revalidatePath("/admin/templates");
+  return error ? { error: error.message } : { ok: true };
+}
+
+export async function archiveTemplate(templateId: string) {
+  await requireRole(["super_admin", "manager"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("checklist_templates").update({ is_active: false }).eq("id", templateId);
+  revalidatePath("/admin/templates");
+  return error ? { error: error.message } : { ok: true };
+}
+
+export async function deleteTemplate(templateId: string) {
+  await requireRole(["super_admin", "manager"]);
+  const supabase = createClient();
+  const { data: instances } = await supabase.from("checklist_instances")
+    .select("id")
+    .eq("template_id", templateId)
+    .limit(1);
+  if (instances?.length) {
+    const { error } = await supabase.from("checklist_templates").update({ is_active: false }).eq("id", templateId);
+    revalidatePath("/admin/templates");
+    return error ? { error: error.message } : { ok: true, archived: true };
+  }
+
+  await supabase.from("template_tasks").delete().eq("template_id", templateId);
+  const { error } = await supabase.from("checklist_templates").delete().eq("id", templateId);
   revalidatePath("/admin/templates");
   return error ? { error: error.message } : { ok: true };
 }

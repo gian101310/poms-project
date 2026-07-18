@@ -818,11 +818,9 @@ function BoardingSheet() {
                   {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   Details
                 </button>
-                {rows.length > 1 && (
-                  <button className="btn-secondary !px-2 !py-1" onClick={() => removeRow(row.id)} title="Remove boarding">
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                <button className="btn-secondary !px-2 !py-1" onClick={() => removeRow(row.id)} title="Remove boarding">
+                  <Trash2 size={14} />
+                </button>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">

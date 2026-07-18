@@ -7,7 +7,7 @@ import { TemplateForm } from "./template-forms";
 export const dynamic = "force-dynamic";
 
 export default async function TemplatesPage() {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const [{ data: templates }, { data: departments }, { data: shifts }] = await Promise.all([
     supabase.from("checklist_templates")
