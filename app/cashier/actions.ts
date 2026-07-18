@@ -1,6 +1,5 @@
 "use server";
-import { requireProfile } from "@/lib/session";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 const phases = new Set(["opening", "shift_change", "closing"]);
@@ -15,13 +14,36 @@ function moneyOrZero(fd: FormData, key: string) {
 }
 
 export async function submitCashReport(fd: FormData) {
-  const profile = await requireProfile();
-  const supabase = createClient();
+  const supabase = createAdminClient();
 
   const phase = String(fd.get("phase") ?? "");
   const reportDate = String(fd.get("report_date") ?? "");
+  const storeId = String(fd.get("store_id") ?? "");
+  const submittedBy = String(fd.get("submitted_by") ?? "");
+  const turnoverTo = String(fd.get("turnover_to") ?? "") || null;
   if (!phases.has(phase)) return { error: "Choose a report phase." };
   if (!reportDate) return { error: "Choose a report date." };
+  if (!storeId) return { error: "Choose a branch." };
+  if (!submittedBy) return { error: "Choose who is submitting the till." };
+
+  const { data: groomAssignments } = await supabase
+    .from("department_assignments")
+    .select("profile_id, departments!inner(code)")
+    .eq("departments.code", "GROOM");
+  const groomerIds = new Set((groomAssignments ?? []).map((row: any) => row.profile_id));
+
+  const { data: allowedStaff, error: staffError } = await supabase
+    .from("profiles")
+    .select("id, full_name, employee_code, role, store_id")
+    .eq("status", "active")
+    .eq("store_id", storeId)
+    .in("role", ["staff", "supervisor"])
+    .neq("employee_code", "BOSSG");
+  if (staffError) return { error: staffError.message };
+  const allowed = (allowedStaff ?? []).filter((s: any) => !groomerIds.has(s.id));
+  const allowedIds = new Set(allowed.map((s: any) => s.id));
+  if (!allowedIds.has(submittedBy)) return { error: "Choose a cashier/shop staff member." };
+  if (turnoverTo && !allowedIds.has(turnoverTo)) return { error: "Handover must be to cashier/shop staff only." };
 
   const hikeCash = moneyOrZero(fd, "expected_cash");
   const actualCash = moneyOrZero(fd, "counted_cash");
@@ -32,6 +54,9 @@ export async function submitCashReport(fd: FormData) {
   const cashVariance = actualCash - (hikeCash - cardTips - expenses);
   const cardVariance = actualCard - (hikeCard + cardTips);
   const totalVariance = cashVariance + cardVariance;
+  const openingFloat = money(fd, "opening_float");
+  const closingFloat = money(fd, "closing_float");
+  const floatVariance = openingFloat != null && closingFloat != null ? Number((closingFloat - openingFloat).toFixed(2)) : null;
   const expenseVendor = String(fd.get("expense_vendor") ?? "").trim();
   const expenseVendorCustom = String(fd.get("expense_vendor_custom") ?? "").trim();
   const expenseName = expenseVendor === "Custom" ? expenseVendorCustom : expenseVendor;
@@ -43,23 +68,24 @@ export async function submitCashReport(fd: FormData) {
     String(fd.get("notes") ?? "").trim(),
   ].filter(Boolean).join("\n");
   const varianceSummary = [
+    floatVariance != null ? `Float variance: AED ${floatVariance.toFixed(2)}` : "",
     `Auto cash variance: AED ${cashVariance.toFixed(2)}`,
     `Auto card variance: AED ${cardVariance.toFixed(2)}`,
     `Total variance: AED ${totalVariance.toFixed(2)}`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const row = {
-    store_id: profile.store_id,
+    store_id: storeId,
     report_date: reportDate,
     phase,
-    opening_float: money(fd, "opening_float"),
-    closing_float: money(fd, "closing_float"),
+    opening_float: openingFloat,
+    closing_float: closingFloat,
     cash_sales: money(fd, "cash_sales"),
     card_sales: money(fd, "card_sales"),
     tips: money(fd, "tips"),
     expenses: money(fd, "expenses"),
-    turnover_to: String(fd.get("turnover_to") ?? "") || null,
-    received_correct: Math.abs(totalVariance) < 0.01,
+    turnover_to: turnoverTo,
+    received_correct: Math.abs(totalVariance) < 0.01 && (floatVariance == null || Math.abs(floatVariance) < 0.01),
     expected_cash: money(fd, "expected_cash"),
     counted_cash: money(fd, "counted_cash"),
     missing_amount: Number(totalVariance.toFixed(2)),
@@ -71,7 +97,7 @@ export async function submitCashReport(fd: FormData) {
     variance_reason: varianceSummary,
     expense_notes: expenses ? `${expenseName || "Expense"}${expenseReason ? ` - ${expenseReason}` : ""}` : null,
     notes: cashierNotes || null,
-    submitted_by: profile.id,
+    submitted_by: submittedBy,
   };
 
   const { error } = await supabase.from("cash_reports").insert(row);

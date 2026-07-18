@@ -15,10 +15,22 @@ function money(value: number) {
   return `AED ${value.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function CashierForm({ today, staff, groomers }: { today: string; staff: any[]; groomers: any[] }) {
+export function CashierForm({
+  today,
+  storeId,
+  staff,
+  groomers,
+}: {
+  today: string;
+  storeId: string;
+  staff: any[];
+  groomers: any[];
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [openingFloat, setOpeningFloat] = useState("");
+  const [closingFloat, setClosingFloat] = useState("");
   const [hikeCash, setHikeCash] = useState("");
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
@@ -35,10 +47,14 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
     const cashVariance = amount(actualCash) - expectedCashAfterPayouts;
     const cardVariance = amount(actualCard) - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
-    return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance };
-  }, [actualCard, actualCash, cardTips, expenses, hikeCard, hikeCash]);
+    const floatVariance = openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0;
+    return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance };
+  }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat]);
 
   function submit(fd: FormData) {
+    fd.set("store_id", storeId);
+    fd.set("opening_float", openingFloat);
+    fd.set("closing_float", closingFloat);
     fd.set("cash_sales", actualCash);
     fd.set("card_sales", actualCard);
     fd.set("expected_cash", hikeCash);
@@ -59,12 +75,22 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
         return;
       }
       formRef.current?.reset();
+      setOpeningFloat("");
+      setClosingFloat("");
+      setHikeCash("");
+      setHikeCard("");
+      setActualCash("");
+      setActualCard("");
+      setCardTips("");
+      setExpenses("");
+      setExpenseVendor("Carrefour");
       router.refresh();
     });
   }
 
   return (
     <form ref={formRef} action={submit} className="card mb-6 space-y-4 p-4">
+      <input type="hidden" name="store_id" value={storeId} />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
           <label className="label">Date</label>
@@ -79,11 +105,14 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
           </select>
         </div>
         <div>
-          <label className="label">Opening float</label>
-          <input name="opening_float" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          <label className="label">Opened / closed by</label>
+          <select name="submitted_by" className="input" defaultValue="" required>
+            <option value="">Choose staff</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
+          </select>
         </div>
         <div>
-          <label className="label">Turnover to</label>
+          <label className="label">Handover to</label>
           <select name="turnover_to" className="input" defaultValue="">
             <option value="">No handover</option>
             {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
@@ -109,16 +138,20 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Actual count</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
-            <label className="label">Actual cash counted</label>
-            <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-          </div>
-          <div>
             <label className="label">Actual card machine sales</label>
             <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
           <div>
+            <label className="label">Actual cash / money drop</label>
+            <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+          <div>
+            <label className="label">Opening float</label>
+            <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+          <div className="md:col-start-3">
             <label className="label">Closing float</label>
-            <input name="closing_float" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
         </div>
       </div>
@@ -163,6 +196,7 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
         <div>
           <p className="text-xs text-slate-400">Expected cash after payouts</p>
           <p className="font-semibold">{money(calc.expectedCashAfterPayouts)}</p>
+          <p className="text-[11px] text-slate-400">Hike cash minus card tips and expenses.</p>
         </div>
         <div>
           <p className="text-xs text-slate-400">Expected card with tips</p>
@@ -175,6 +209,10 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
         <div>
           <p className="text-xs text-slate-400">Card variance</p>
           <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400">Float variance</p>
+          <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.floatVariance)}</p>
         </div>
         <div className="md:col-span-4">
           <p className="text-xs text-slate-400">Total variance</p>
@@ -191,6 +229,8 @@ export function CashierForm({ today, staff, groomers }: { today: string; staff: 
       <input type="hidden" name="card_sales" />
       <input type="hidden" name="tips" />
       <input type="hidden" name="expenses" />
+      <input type="hidden" name="opening_float" />
+      <input type="hidden" name="closing_float" />
       <input type="hidden" name="expected_cash" />
       <input type="hidden" name="counted_cash" />
       <input type="hidden" name="missing_amount" />
