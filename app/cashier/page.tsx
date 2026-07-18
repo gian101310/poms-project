@@ -121,6 +121,11 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       const dayFloatVariance = Number(row.closing_float) - Number(openingFloat);
       if (Math.abs(dayFloatVariance) >= 0.01) flags.push(`Open/close ${money(dayFloatVariance)}`);
     }
+    if (standardFloat != null) {
+      const activeFloat = row.phase === "closing" ? row.closing_float : row.opening_float;
+      const standardVariance = activeFloat == null ? 0 : Number(activeFloat) - standardFloat;
+      if (Math.abs(standardVariance) >= 0.01) flags.push(`${phaseFloatLabel(row.phase)} ${money(standardVariance)}`);
+    }
     if (row.opening_float != null && row.closing_float != null && Math.abs(Number(row.closing_float) - Number(row.opening_float)) >= 0.01) {
       flags.push(`Float ${money(Number(row.closing_float) - Number(row.opening_float))}`);
     }
@@ -129,6 +134,24 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
 
   function person(profile: any) {
     return profile?.full_name ? `${profile.full_name} (${profile.employee_code ?? "-"})` : "-";
+  }
+
+  function phaseFloatLabel(phase: string) {
+    if (phase === "shift_change") return "Shift change float";
+    if (phase === "closing") return "Closing float";
+    return "Opening float";
+  }
+
+  function phaseCashLabel(phase: string) {
+    if (phase === "shift_change") return "Shift change cash / drop";
+    if (phase === "closing") return "Closing cash / drop";
+    return "Opening cash / drop";
+  }
+
+  function phaseCardLabel(phase: string) {
+    if (phase === "shift_change") return "Shift change card machine";
+    if (phase === "closing") return "Closing card machine";
+    return "Opening card machine";
   }
 
   return (
@@ -219,12 +242,9 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
                       <p className="font-semibold">{r.stores?.name ?? "-"}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400">Opening float</p>
-                      <p className="font-semibold">{money(r.opening_float)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Closing float</p>
-                      <p className="font-semibold">{money(r.closing_float)}</p>
+                      <p className="text-xs text-slate-400">{phaseFloatLabel(r.phase)}</p>
+                      <p className="font-semibold">{money(r.phase === "closing" ? r.closing_float : r.opening_float)}</p>
+                      {standardFloat != null && <p className="text-xs text-slate-400">Standard {money(standardFloat)}</p>}
                     </div>
                     <div>
                       <p className="text-xs text-slate-400">Balanced</p>
@@ -235,7 +255,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
                       <p className="font-semibold">{money(r.expected_cash)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400">Actual cash / drop</p>
+                      <p className="text-xs text-slate-400">{phaseCashLabel(r.phase)}</p>
                       <p className="font-semibold">{money(r.counted_cash ?? r.cash_sales)}</p>
                     </div>
                     <div>
@@ -243,7 +263,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
                       <p className="font-semibold">{money(r.expected_card)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400">Actual card machine</p>
+                      <p className="text-xs text-slate-400">{phaseCardLabel(r.phase)}</p>
                       <p className="font-semibold">{money(r.actual_card ?? r.card_sales)}</p>
                     </div>
                     <div>

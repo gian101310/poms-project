@@ -36,7 +36,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   let deptsQuery = supabase.from("departments").select("id, name").eq("is_active", true).order("name");
   let followQuery = supabase.from("followup_tasks").select("*, departments!inner(name, store_id), profiles!followup_tasks_profile_id_fkey(full_name)")
       .is("consumed_at", null).order("target_date");
-  let cashQuery = supabase.from("cash_reports").select("phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, created_at, store_id").eq("report_date", date);
+  let cashQuery = supabase
+    .from("cash_reports")
+    .select("id, phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, expected_cash, counted_cash, expected_card, actual_card, missing_amount, card_variance, card_tip_amount, shop_purchase_amount, received_correct, variance_reason, created_at, store_id, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), stores(name)")
+    .eq("report_date", date)
+    .order("created_at", { ascending: false });
   let standardFloatQuery = supabase.from("app_settings").select("store_id, value").eq("key", "standard_cash_float");
   let breakQuery = supabase.from("break_sessions")
       .select("id, profile_id, started_at, ended_at, duration_minutes, flagged, flag_reason, profiles(full_name, employee_code)")
@@ -220,6 +224,33 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     expenses: acc.expenses + Number(r.expenses ?? 0),
   }), { cash_sales: 0, card_sales: 0, tips: 0, expenses: 0 });
   const money = (value: number) => `AED ${value.toLocaleString("en-AE", { maximumFractionDigits: 0 })}`;
+  const standardFloatByStore = new Map(standardFloatRows.map((row: any) => [row.store_id, Number(row.value)]));
+
+  function phaseLabel(phase: string) {
+    if (phase === "shift_change") return "Shift change";
+    if (phase === "closing") return "Closing";
+    return "Opening";
+  }
+
+  function phaseFloatLabel(phase: string) {
+    if (phase === "shift_change") return "Shift change float";
+    if (phase === "closing") return "Closing float";
+    return "Opening float";
+  }
+
+  function cashierFlag(row: any) {
+    const flags: string[] = [];
+    if (row.received_correct === false) flags.push("Discrepancy");
+    if (Math.abs(Number(row.missing_amount ?? 0)) >= 0.01) flags.push(`cash/card ${money(Number(row.missing_amount ?? 0))}`);
+    if (Math.abs(Number(row.card_variance ?? 0)) >= 0.01) flags.push(`card ${money(Number(row.card_variance ?? 0))}`);
+    const standardFloat = standardFloatByStore.get(row.store_id);
+    if (standardFloat != null) {
+      const activeFloat = row.phase === "closing" ? row.closing_float : row.opening_float;
+      const floatVariance = activeFloat == null ? 0 : Number(activeFloat) - standardFloat;
+      if (Math.abs(floatVariance) >= 0.01) flags.push(`${phaseFloatLabel(row.phase)} ${money(floatVariance)}`);
+    }
+    return flags.length ? flags.join(" · ") : "Clear";
+  }
 
   const kpi = {
     completion: allTasks.length ? Math.round((done / allTasks.length) * 100) : 0,
@@ -627,6 +658,50 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
         <StatCard label="Card Sales" value={money(cashTotals.card_sales)} />
         <StatCard label="Tips" value={money(cashTotals.tips)} />
         <StatCard label="Expenses" value={money(cashTotals.expenses)} />
+      </div>
+
+      <div className="card mb-6 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cashier report logs</p>
+            <p className="mt-1 text-sm text-slate-500">Phase, staff, and discrepancies for {date}</p>
+          </div>
+          <Link href={`/cashier?${quickDateParam}`} className="btn-secondary">Open cashier page</Link>
+        </div>
+        {cashReports.length === 0 ? (
+          <p className="text-sm text-slate-400">No cashier reports submitted yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {cashReports.slice(0, 10).map((report: any) => {
+              const flag = cashierFlag(report);
+              const activeFloat = report.phase === "closing" ? report.closing_float : report.opening_float;
+              const standardFloat = standardFloatByStore.get(report.store_id);
+              return (
+                <div key={report.id} className={`rounded-lg border p-3 text-sm ${flag === "Clear" ? "border-slate-200 dark:border-slate-800" : "border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20"}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">
+                        {phaseLabel(report.phase)} report
+                        <span className="ml-2 text-xs font-normal text-slate-400">{fmtTime(report.created_at)}</span>
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {report.profiles?.full_name ?? "Unknown staff"} ({report.profiles?.employee_code ?? "-"}) · {report.stores?.name ?? "Branch"}
+                      </p>
+                    </div>
+                    <span className={flag === "Clear" ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{flag}</span>
+                  </div>
+                  <div className="mt-2 grid gap-2 text-xs text-slate-500 md:grid-cols-4">
+                    <span>{phaseFloatLabel(report.phase)}: {money(Number(activeFloat ?? 0))}{standardFloat != null ? ` / standard ${money(standardFloat)}` : ""}</span>
+                    <span>Cash: Hike {money(Number(report.expected_cash ?? 0))} / actual {money(Number(report.counted_cash ?? report.cash_sales ?? 0))}</span>
+                    <span>Card: Hike {money(Number(report.expected_card ?? 0))} / actual {money(Number(report.actual_card ?? report.card_sales ?? 0))}</span>
+                    <span>Tips {money(Number(report.card_tip_amount ?? report.tips ?? 0))} · Expenses {money(Number(report.shop_purchase_amount ?? report.expenses ?? 0))}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {cashReports.length > 10 && <p className="text-xs text-slate-400">+{cashReports.length - 10} more cashier report(s)</p>}
+          </div>
+        )}
       </div>
 
       {pendingFollowups.length > 0 && (

@@ -15,6 +15,12 @@ function money(value: number) {
   return `AED ${value.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function phaseText(phase: "opening" | "shift_change" | "closing") {
+  if (phase === "shift_change") return "Shift change";
+  if (phase === "closing") return "Closing";
+  return "Opening";
+}
+
 export function CashierForm({
   today,
   storeId,
@@ -52,7 +58,9 @@ export function CashierForm({
     const totalVariance = cashVariance + cardVariance;
     const activeFloat = phase === "closing" ? amount(closingFloat) : amount(openingFloat);
     const standardVariance = standardFloat == null ? 0 : activeFloat - standardFloat;
-    const floatVariance = phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0;
+    const floatVariance = standardFloat == null
+      ? (phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0)
+      : standardVariance;
     return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance };
   }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat, phase, standardFloat]);
 
@@ -148,14 +156,14 @@ export function CashierForm({
       </div>
 
       <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Hike sales</p>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phaseText(phase)} Hike sales</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="label">Hike cash sales</label>
+            <label className="label">{phaseText(phase)} Hike cash sales</label>
             <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
           <div>
-            <label className="label">Hike card sales</label>
+            <label className="label">{phaseText(phase)} Hike card sales</label>
             <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
         </div>
@@ -165,11 +173,11 @@ export function CashierForm({
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing count" : phase === "shift_change" ? "Shift count" : "Actual count"}</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
-            <label className="label">Actual card machine sales</label>
+            <label className="label">{phaseText(phase)} actual card machine sales</label>
             <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
           <div>
-            <label className="label">Actual cash / money drop</label>
+            <label className="label">{phaseText(phase)} actual cash / money drop</label>
             <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
           {phase !== "opening" && (
@@ -233,17 +241,18 @@ export function CashierForm({
           <p className="font-semibold">{money(calc.expectedCardWithTips)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-400">Cash variance</p>
+          <p className="text-xs text-slate-400">{phaseText(phase)} cash variance</p>
           <p className={Math.abs(calc.cashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cashVariance)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-400">Card variance</p>
+          <p className="text-xs text-slate-400">{phaseText(phase)} card variance</p>
           <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
         </div>
         {phase !== "opening" && (
           <div>
             <p className="text-xs text-slate-400">{phase === "shift_change" ? "Shift float variance" : "Closing float variance"}</p>
-            <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.floatVariance)}</p>
+            <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{money(calc.floatVariance)}</p>
+            <p className="text-[11px] text-slate-400">{standardFloat == null ? "Against opening float when entered." : "Against standard float."}</p>
           </div>
         )}
         {standardFloat != null && (
