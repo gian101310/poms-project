@@ -15,7 +15,7 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
   if (q.length >= 2) {
     const like = `%${q}%`;
     const [emps, animals, incidents, memos, tasks] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, employee_code, role").or(`full_name.ilike.${like},employee_code.ilike.${like}`).limit(10),
+      supabase.from("profiles").select("id, full_name, employee_code, role").neq("role", "super_admin").neq("employee_code", "BOSSG").or(`full_name.ilike.${like},employee_code.ilike.${like}`).limit(10),
       supabase.from("animals").select("id, name, species, tag_code, status").or(`name.ilike.${like},species.ilike.${like},tag_code.ilike.${like}`).limit(10),
       supabase.from("incident_reports").select("id, category, description, status").or(`description.ilike.${like},category.ilike.${like}`).limit(10),
       supabase.from("memos").select("id, reason, status").ilike("reason", like).limit(10),

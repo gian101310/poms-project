@@ -145,7 +145,7 @@ export function Shell({
       </div>
       <div className="border-t border-slate-200 p-3 dark:border-slate-800">
         <p className="truncate text-sm font-semibold">{name}</p>
-        <p className="truncate text-xs capitalize text-slate-400">{code} · {role.replace("_", " ")} · {branchName}</p>
+        <p className="truncate text-xs capitalize text-slate-400">{code} · {role === "super_admin" ? "Owner" : role.replace("_", " ")} · {branchName}</p>
       </div>
     </nav>
   );

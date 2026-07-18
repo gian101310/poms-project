@@ -32,6 +32,8 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       .select("id, full_name, employee_code")
       .eq("status", "active")
       .eq("store_id", selectedBranch ?? profile.store_id)
+      .neq("role", "super_admin")
+      .neq("employee_code", "BOSSG")
       .order("full_name"),
   ]);
 

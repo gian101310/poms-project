@@ -15,6 +15,8 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
   let employeesQuery = supabase.from("profiles")
       .select("*, stores(id, name, code), positions(title), department_assignments(department_id, is_primary_supervisor, departments(name))")
       .eq("status", "active")
+      .neq("role", "super_admin")
+      .neq("employee_code", "BOSSG")
       .order("created_at", { ascending: false });
   let departmentsQuery = supabase.from("departments").select("id, store_id, name").eq("is_active", true).order("name");
   let sectionsQuery = supabase.from("sections").select("id, department_id, name, departments!inner(id, name, store_id)").eq("is_active", true).order("name");
@@ -29,7 +31,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: { 
   const [{ data: employees }, { data: departments }, { data: positions }, { data: branches }, { data: sections }, sectionAssignRes] = await Promise.all([
     employeesQuery,
     departmentsQuery,
-    supabase.from("positions").select("id, title, level").eq("is_active", true).order("title"),
+    supabase.from("positions").select("id, title, level").eq("is_active", true).neq("level", "super_admin").order("title"),
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     sectionsQuery,
     sectionAssignQuery,

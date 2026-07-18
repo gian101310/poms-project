@@ -16,7 +16,7 @@ export async function sendBroadcast(fd: FormData) {
 
   let recipients: string[] = [];
   if (target === "all") {
-    const { data } = await admin.from("profiles").select("id").eq("status", "active");
+    const { data } = await admin.from("profiles").select("id").eq("status", "active").neq("role", "super_admin").neq("employee_code", "BOSSG");
     recipients = (data ?? []).map((p: any) => p.id);
   } else {
     recipients = [target];

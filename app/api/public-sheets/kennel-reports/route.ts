@@ -76,6 +76,8 @@ export async function POST(req: Request) {
     .eq("id", submittedByProfileId)
     .eq("store_id", store.id)
     .eq("status", "active")
+    .neq("role", "super_admin")
+    .neq("employee_code", "BOSSG")
     .single();
   if (staffError || !staff) return NextResponse.json({ error: "Choose a valid Springs staff member." }, { status: 400 });
 

@@ -17,6 +17,8 @@ export default async function GroomingPage({ searchParams }: { searchParams: { d
   let groomersQuery = supabase.from("profiles")
     .select("id, full_name, employee_code, store_id, department_assignments!inner(departments!inner(code))")
     .eq("status", "active")
+    .neq("role", "super_admin")
+    .neq("employee_code", "BOSSG")
     .eq("department_assignments.departments.code", "GROOM")
     .order("full_name");
   if (selectedBranch) groomersQuery = groomersQuery.eq("store_id", selectedBranch);

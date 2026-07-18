@@ -15,6 +15,8 @@ export async function GET() {
     .select("id, full_name, employee_code")
     .eq("store_id", store.id)
     .eq("status", "active")
+    .neq("role", "super_admin")
+    .neq("employee_code", "BOSSG")
     .order("full_name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

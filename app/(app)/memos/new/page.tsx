@@ -7,7 +7,7 @@ export default async function NewMemoPage() {
   await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const { data: employees } = await supabase.from("profiles")
-    .select("id, full_name, employee_code").eq("status", "active").order("full_name");
+    .select("id, full_name, employee_code").eq("status", "active").neq("role", "super_admin").neq("employee_code", "BOSSG").order("full_name");
   return (
     <div>
       <PageHeader title="Issue Memo" />

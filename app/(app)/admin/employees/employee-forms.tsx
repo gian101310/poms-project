@@ -181,7 +181,6 @@ export function EmployeeForm({
                 <option value="staff">Staff</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="manager">Manager</option>
-                <option value="super_admin">Super Admin</option>
               </select>
             </div>
             <div>
@@ -296,7 +295,6 @@ export function EditEmployee({
                 <option value="staff">Staff</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="manager">Manager</option>
-                <option value="super_admin">Super Admin</option>
               </select>
             </div>
             <div>

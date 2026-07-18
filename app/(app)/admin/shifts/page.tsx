@@ -14,7 +14,7 @@ export default async function ShiftsPage() {
 
   const [{ data: shifts }, { data: employees }, { data: upcoming }] = await Promise.all([
     supabase.from("shifts").select("*").order("start_time"),
-    supabase.from("profiles").select("id, full_name, employee_code").eq("status", "active").order("full_name"),
+    supabase.from("profiles").select("id, full_name, employee_code").eq("status", "active").neq("role", "super_admin").neq("employee_code", "BOSSG").order("full_name"),
     supabase.from("employee_schedules")
       .select("*, profiles!employee_schedules_profile_id_fkey(full_name, employee_code), shifts(name)")
       .gte("work_date", today).order("work_date").limit(200),

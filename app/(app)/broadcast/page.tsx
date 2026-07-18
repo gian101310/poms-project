@@ -12,6 +12,8 @@ export default async function BroadcastPage() {
     .from("profiles")
     .select("id, full_name, employee_code")
     .eq("status", "active")
+    .neq("role", "super_admin")
+    .neq("employee_code", "BOSSG")
     .order("full_name");
 
   return (

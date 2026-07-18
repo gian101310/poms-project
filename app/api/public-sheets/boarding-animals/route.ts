@@ -64,6 +64,8 @@ async function getSpringsStoreAndStaff(admin: ReturnType<typeof createAdminClien
     .eq("id", profileId)
     .eq("store_id", store.id)
     .eq("status", "active")
+    .neq("role", "super_admin")
+    .neq("employee_code", "BOSSG")
     .single();
   if (staffError || !staff) return { error: "Choose a valid Springs staff member.", status: 400 as const };
 

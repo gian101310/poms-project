@@ -38,10 +38,16 @@ export async function toggleDelivery(profileId: string, currentlyOut: boolean) {
   }
 
   const { data: staff, error: staffError } = await admin.from("profiles")
-    .select("id, store_id, status")
+    .select("id, store_id, status, role, employee_code")
     .eq("id", profileId)
     .single();
-  if (staffError || !staff || staff.status !== "active") {
+  if (
+    staffError ||
+    !staff ||
+    staff.status !== "active" ||
+    staff.role === "super_admin" ||
+    staff.employee_code === "BOSSG"
+  ) {
     return { error: "Staff member is not active." };
   }
 
