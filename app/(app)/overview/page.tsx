@@ -106,8 +106,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     .eq("inspection_date", date)
     .order("created_at", { ascending: false });
   if (selectedBranch) shopInspectionsQuery = shopInspectionsQuery.eq("store_id", selectedBranch);
+  let groomingInspectionsQuery = supabase.from("grooming_inspections")
+    .select("id, grooming_booking_id, inspector_name, inspection_shift, status, remarks, action_needed, created_at, store_id, grooming_bookings(pet_name, pet_type, client_name)")
+    .eq("inspection_date", date)
+    .order("created_at", { ascending: false });
+  if (selectedBranch) groomingInspectionsQuery = groomingInspectionsQuery.eq("store_id", selectedBranch);
 
-  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes] = await Promise.all([
+  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes, groomingInspectionsRes] = await Promise.all([
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     instQuery,
     attQuery,
@@ -127,6 +132,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     shopAnimalReportsQuery,
     kennelInspectionsQuery,
     shopInspectionsQuery,
+    groomingInspectionsQuery,
   ]);
 
   const instances = (instRes.data ?? []) as any[];
@@ -166,6 +172,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const kennelInspections = [
     ...(kennelInspectionsRes.error ? [] : ((kennelInspectionsRes.data ?? []) as any[]).map((item) => ({ ...item, source_type: "boarding" }))),
     ...(shopInspectionsRes.error ? [] : ((shopInspectionsRes.data ?? []) as any[]).map((item) => ({ ...item, source_type: "shop" }))),
+    ...(groomingInspectionsRes.error ? [] : ((groomingInspectionsRes.data ?? []) as any[]).map((item) => ({
+      ...item,
+      source_type: "grooming",
+      animal_name: item.grooming_bookings?.pet_name ?? item.grooming_bookings?.client_name,
+      pet_type: item.grooming_bookings?.pet_type ?? "Grooming",
+      display_area: "Grooming",
+      cage_number: "",
+    }))),
   ];
   const kennelInspectionIssues = kennelInspections.filter((item: any) => item.status !== "ok" || item.action_needed || item.remarks);
   const kennelTotals = kennelReports.reduce((acc, report) => ({
@@ -179,6 +193,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     feeding: acc.feeding + Number(report.feeding_done ?? 0),
     cleaning: acc.cleaning + Number(report.cleaning_done ?? 0),
   }), { animals: 0, feeding: 0, cleaning: 0 });
+  const shopAnimalByCategory = shopAnimalReports.flatMap((report: any) => report.rows ?? [])
+    .reduce((acc: Record<string, number>, row: any) => {
+      const key = String(row.shop_category ?? "shop_animals").replace(/_/g, " ");
+      acc[key] = (acc[key] ?? 0) + Number(row.quantity ?? 1);
+      return acc;
+    }, {});
   const activeDeliveryMap = new Map(deliveryRows.filter((d: any) => !d.ended_at).map((d: any) => [d.profile_id, d]));
   const onBreak = breakSessions.filter((b: any) => !b.ended_at).length;
   const flaggedBreaks = breakSessions.filter((b: any) => b.flagged).length;
@@ -457,7 +477,19 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
                 <p className="mt-2 text-xs text-slate-500">
                   {report.total_animals} animal(s) · feeding {report.feeding_done} · cleaning {report.cleaning_done}
                 </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {(report.rows ?? []).map((row: any) => String(row.shop_category ?? "shop_animals").replace(/_/g, " ")).filter(Boolean).join(", ") || "No category"}
+                </p>
               </div>
+            ))}
+          </div>
+        )}
+        {Object.keys(shopAnimalByCategory).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+            {Object.entries(shopAnimalByCategory).map(([category, count]) => (
+              <span key={category} className="rounded-full bg-slate-100 px-2 py-1 capitalize text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {category}: {Number(count)}
+              </span>
             ))}
           </div>
         )}
@@ -514,8 +546,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
             <div><p className="font-semibold">{kennelInspectionIssues.length}</p><p className="text-xs text-slate-400">Issues</p></div>
           </div>
         </div>
-        {kennelInspectionsRes.error || shopInspectionsRes.error ? (
-          <p className="text-sm text-amber-600">Run migrations 020 and 021 to enable all admin inspection notes.</p>
+        {kennelInspectionsRes.error || shopInspectionsRes.error || groomingInspectionsRes.error ? (
+          <p className="text-sm text-amber-600">Run migrations 020, 021, and 022 to enable all admin inspection notes.</p>
         ) : kennelInspections.length === 0 ? (
           <p className="text-sm text-slate-400">No admin inspection submitted yet.</p>
         ) : (

@@ -32,10 +32,13 @@ export async function GET(req: Request) {
   const [
     { data: reports, error: reportsError },
     { data: shopReports, error: shopReportsError },
+    { data: groomingBookings, error: groomingBookingsError },
     { data: inspections, error: inspectionsError },
     { data: shopInspections, error: shopInspectionsError },
+    { data: groomingInspections, error: groomingInspectionsError },
     { data: previous, error: previousError },
     { data: previousShop, error: previousShopError },
+    { data: previousGrooming, error: previousGroomingError },
   ] = await Promise.all([
     admin.from("kennel_reports")
       .select("id, report_date, category, submitted_by_name, submitted_at, rows")
@@ -47,12 +50,22 @@ export async function GET(req: Request) {
       .eq("store_id", store.id)
       .eq("report_date", reportDate)
       .order("submitted_at", { ascending: true }),
+    admin.from("grooming_bookings")
+      .select("id, booking_date, appointment_time, client_name, client_phone, pet_name, pet_type, dog_breed, service_notes, status, completed_at, payment_status, profiles!grooming_bookings_assigned_groomer_id_fkey(full_name)")
+      .eq("store_id", store.id)
+      .eq("booking_date", reportDate)
+      .order("appointment_time", { ascending: true }),
     admin.from("kennel_inspections")
       .select("*")
       .eq("store_id", store.id)
       .eq("inspection_date", reportDate)
       .order("created_at", { ascending: false }),
     admin.from("shop_animal_inspections")
+      .select("*")
+      .eq("store_id", store.id)
+      .eq("inspection_date", reportDate)
+      .order("created_at", { ascending: false }),
+    admin.from("grooming_inspections")
       .select("*")
       .eq("store_id", store.id)
       .eq("inspection_date", reportDate)
@@ -63,6 +76,11 @@ export async function GET(req: Request) {
       .eq("inspection_date", yesterday)
       .order("created_at", { ascending: false }),
     admin.from("shop_animal_inspections")
+      .select("*")
+      .eq("store_id", store.id)
+      .eq("inspection_date", yesterday)
+      .order("created_at", { ascending: false }),
+    admin.from("grooming_inspections")
       .select("*")
       .eq("store_id", store.id)
       .eq("inspection_date", yesterday)
@@ -71,10 +89,13 @@ export async function GET(req: Request) {
 
   if (reportsError) return NextResponse.json({ error: reportsError.message }, { status: 500 });
   if (shopReportsError && !isMissingTable(shopReportsError)) return NextResponse.json({ error: shopReportsError.message }, { status: 500 });
+  if (groomingBookingsError && !isMissingTable(groomingBookingsError)) return NextResponse.json({ error: groomingBookingsError.message }, { status: 500 });
   if (inspectionsError && !isMissingTable(inspectionsError)) return NextResponse.json({ error: inspectionsError.message }, { status: 500 });
   if (shopInspectionsError && !isMissingTable(shopInspectionsError)) return NextResponse.json({ error: shopInspectionsError.message }, { status: 500 });
+  if (groomingInspectionsError && !isMissingTable(groomingInspectionsError)) return NextResponse.json({ error: groomingInspectionsError.message }, { status: 500 });
   if (previousError && !isMissingTable(previousError)) return NextResponse.json({ error: previousError.message }, { status: 500 });
   if (previousShopError && !isMissingTable(previousShopError)) return NextResponse.json({ error: previousShopError.message }, { status: 500 });
+  if (previousGroomingError && !isMissingTable(previousGroomingError)) return NextResponse.json({ error: previousGroomingError.message }, { status: 500 });
 
   const latestByAnimal = new Map<string, any>();
   for (const item of inspections ?? []) {
@@ -84,6 +105,15 @@ export async function GET(req: Request) {
   for (const item of shopInspections ?? []) {
     const key = `shop:${item.shop_animal_report_id}:${item.row_id}`;
     if (!latestByAnimal.has(key)) latestByAnimal.set(key, item);
+  }
+  for (const item of groomingInspections ?? []) {
+    const key = `grooming:${item.grooming_booking_id}:${item.grooming_booking_id}`;
+    if (!latestByAnimal.has(key)) latestByAnimal.set(key, {
+      ...item,
+      feeding_ok: item.booking_ok,
+      cleaning_ok: item.client_updated_ok,
+      walking_ok: null,
+    });
   }
 
   const boardingAnimals = (reports ?? []).flatMap((report: any) =>
@@ -127,7 +157,7 @@ export async function GET(req: Request) {
         report_id: report.id,
         row_id: rowId,
         report_date: report.report_date,
-        category: "shop_animals",
+        category: row.shop_category ?? "shop_animals",
         submitted_by_name: report.submitted_by_name,
         submitted_at: report.submitted_at,
         label: row.label ?? `Shop Animal ${index + 1}`,
@@ -150,11 +180,46 @@ export async function GET(req: Request) {
       };
     })
   );
-  const animals = [...boardingAnimals, ...shopAnimals];
+  const groomingAnimals = groomingBookingsError && isMissingTable(groomingBookingsError) ? [] : (groomingBookings ?? []).map((booking: any, index: number) => {
+    const key = `grooming:${booking.id}:${booking.id}`;
+    return {
+      key,
+      source_type: "grooming",
+      report_id: booking.id,
+      row_id: booking.id,
+      report_date: booking.booking_date,
+      category: "grooming",
+      submitted_by_name: booking.profiles?.full_name ?? "Grooming",
+      submitted_at: `${booking.booking_date}T${booking.appointment_time ?? "00:00:00"}`,
+      label: `Grooming ${index + 1}`,
+      pet_type: booking.pet_type,
+      animal_name: booking.pet_name,
+      client_number: booking.client_phone,
+      client_name: booking.client_name,
+      breed: booking.dog_breed,
+      cage_color: "",
+      cage_number: "",
+      display_area: "Grooming",
+      quantity: 1,
+      checkout_date: "",
+      payment_status: booking.payment_status,
+      health_status: booking.status,
+      report: booking.service_notes,
+      feeding_done: ["confirmed", "completed"].includes(booking.status),
+      cleaning_done: Boolean(booking.completed_at || booking.status === "completed"),
+      walking_done: false,
+      groomer_name: booking.profiles?.full_name,
+      appointment_time: booking.appointment_time,
+      grooming_status: booking.status,
+      latest_inspection: latestByAnimal.get(key) ?? null,
+    };
+  });
+  const animals = [...boardingAnimals, ...groomingAnimals, ...shopAnimals];
 
   const previousRows = [
     ...(previous ?? []).map((row: any) => ({ ...row, source_type: "boarding" })),
     ...(previousShop ?? []).map((row: any) => ({ ...row, source_type: "shop" })),
+    ...(previousGrooming ?? []).map((row: any) => ({ ...row, source_type: "grooming", animal_name: "Grooming booking" })),
   ];
   const issueRows = previousRows.filter((row: any) => row.status !== "ok" || row.action_needed || row.remarks);
   const yesterdaySummary = previousRows.length === 0

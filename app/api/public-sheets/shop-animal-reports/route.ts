@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+const categories = new Set(["small_animals", "fish", "birds", "reptiles"]);
+
 export async function POST(req: Request) {
   let body: any = {};
   try { body = await req.json(); } catch {
@@ -20,6 +22,7 @@ export async function POST(req: Request) {
     .map((row: any, index: number) => ({
       row_id: String(row.row_id ?? `${Date.now()}-${index}`),
       label: `Shop Animal ${index + 1}`,
+      shop_category: categories.has(String(row.shop_category ?? "")) ? String(row.shop_category) : "small_animals",
       pet_type: String(row.pet_type ?? "").trim(),
       animal_name: String(row.animal_name ?? "").trim(),
       breed: String(row.breed ?? "").trim(),

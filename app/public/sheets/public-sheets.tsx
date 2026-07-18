@@ -8,7 +8,9 @@ import {
 
 type PetType = "Dog" | "Cat" | "Bird" | "Reptile" | "Fish" | "Insect" | "Rabbit" | "Guinea Pig" | "Hamster" | "Sugar Glider" | "Fancy Mouse" | "Rat" | "Degu";
 type BoardingCategory = "dogs" | "cats" | "birds" | "reptiles" | "small_animals";
+type ShopAnimalCategory = "small_animals" | "fish" | "birds" | "reptiles";
 type PublicSheetTab = "boarding" | "shop" | "grooming" | "inspection";
+type InspectionSource = "boarding" | "grooming" | "shop";
 
 type StaffOption = {
   id: string;
@@ -63,16 +65,17 @@ type ShopAnimalRow = {
 
 type KennelAnimal = {
   key: string;
-  source_type: "boarding" | "shop";
+  source_type: InspectionSource;
   report_id: string;
   row_id: string;
   report_date: string;
-  category: BoardingCategory | "shop_animals";
+  category: BoardingCategory | ShopAnimalCategory | "shop_animals" | "grooming";
   submitted_by_name: string;
   submitted_at: string;
   label: string;
   pet_type: PetType;
   animal_name: string;
+  client_name?: string;
   client_number: string;
   breed: string;
   cage_color: string;
@@ -83,6 +86,9 @@ type KennelAnimal = {
   payment_status: string;
   health_status: string;
   report: string;
+  groomer_name?: string;
+  appointment_time?: string;
+  grooming_status?: string;
   feeding_done: boolean;
   cleaning_done: boolean;
   walking_done: boolean;
@@ -116,6 +122,12 @@ const boardingCategories: { id: BoardingCategory; label: string; petTypes: PetTy
   { id: "birds", label: "Birds Boarding", petTypes: ["Bird"] },
   { id: "reptiles", label: "Reptile Boarding", petTypes: ["Reptile"] },
   { id: "small_animals", label: "Small Animals Boarding", petTypes: ["Rabbit", "Guinea Pig", "Hamster", "Sugar Glider", "Fancy Mouse", "Rat", "Degu"] },
+];
+const shopAnimalCategories: { id: ShopAnimalCategory; label: string; petTypes: PetType[]; defaultArea: string }[] = [
+  { id: "small_animals", label: "Small Animals", petTypes: ["Rabbit", "Guinea Pig", "Hamster", "Sugar Glider", "Fancy Mouse", "Rat", "Degu"], defaultArea: "Small animal wall" },
+  { id: "fish", label: "Fish", petTypes: ["Fish"], defaultArea: "Fish wall" },
+  { id: "birds", label: "Birds", petTypes: ["Bird"], defaultArea: "Bird room" },
+  { id: "reptiles", label: "Reptiles", petTypes: ["Reptile", "Insect"], defaultArea: "Reptile rack" },
 ];
 const sizes = ["Toy", "Small", "Medium", "Large", "Giant"];
 const cageColors = ["Black", "Blue", "Brown", "Green", "Grey", "Orange", "Pink", "Purple", "Red", "Silver", "White", "Yellow"];
@@ -220,13 +232,13 @@ function blankGrooming(): GroomingRow {
   };
 }
 
-function blankShopAnimal(petType: PetType = "Bird"): ShopAnimalRow {
+function blankShopAnimal(petType: PetType = "Bird", displayArea = "Bird room"): ShopAnimalRow {
   return {
     id: id(),
     petType,
     animalName: "",
     breed: "",
-    displayArea: "Bird room",
+    displayArea,
     cageColor: "",
     cageNumber: "",
     quantity: 1,
@@ -501,18 +513,21 @@ function BoardingSheet() {
 }
 
 function ShopAnimalsSheet() {
-  const [rows, setRows] = useState<ShopAnimalRow[]>([
-    blankShopAnimal("Bird"),
-    blankShopAnimal("Reptile"),
-    blankShopAnimal("Fish"),
-    blankShopAnimal("Insect"),
-  ]);
+  const [activeCategory, setActiveCategory] = useState<ShopAnimalCategory>("small_animals");
+  const [rowsByCategory, setRowsByCategory] = useState<Record<ShopAnimalCategory, ShopAnimalRow[]>>({
+    small_animals: [blankShopAnimal("Rabbit", "Small animal wall"), blankShopAnimal("Guinea Pig", "Small animal wall")],
+    fish: [blankShopAnimal("Fish", "Fish wall")],
+    birds: [blankShopAnimal("Bird", "Bird room"), blankShopAnimal("Bird", "Bird room")],
+    reptiles: [blankShopAnimal("Reptile", "Reptile rack"), blankShopAnimal("Insect", "Insect shelf")],
+  });
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [submittedBy, setSubmittedBy] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [reportDate, setReportDate] = useState(today);
+  const activeConfig = shopAnimalCategories.find((category) => category.id === activeCategory) ?? shopAnimalCategories[0];
+  const rows = rowsByCategory[activeCategory];
 
   useEffect(() => {
     let cancelled = false;
@@ -530,7 +545,24 @@ function ShopAnimalsSheet() {
   }, []);
 
   function update(rowId: string, patch: Partial<ShopAnimalRow>) {
-    setRows((current) => current.map((row) => row.id === rowId ? { ...row, ...patch } : row));
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: current[activeCategory].map((row) => row.id === rowId ? { ...row, ...patch } : row),
+    }));
+  }
+
+  function addRow() {
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: [...current[activeCategory], blankShopAnimal(activeConfig.petTypes[0], activeConfig.defaultArea)],
+    }));
+  }
+
+  function removeRow(rowId: string) {
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: current[activeCategory].filter((item) => item.id !== rowId),
+    }));
   }
 
   async function submitReport() {
@@ -547,6 +579,7 @@ function ShopAnimalsSheet() {
           submitted_by_name: chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : "",
           rows: rows.map((row) => ({
             row_id: row.id,
+            shop_category: activeCategory,
             pet_type: row.petType,
             animal_name: row.animalName,
             breed: row.breed,
@@ -563,7 +596,7 @@ function ShopAnimalsSheet() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "Could not submit shop animal report.");
-      setMessage(`Submitted shop animal report at ${new Date(json.report.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+      setMessage(`Submitted ${activeConfig.label} at ${new Date(json.report.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
     } catch (e: any) {
       setMessage(e.message ?? "Could not submit shop animal report.");
     } finally {
@@ -579,9 +612,21 @@ function ShopAnimalsSheet() {
           <p className="text-sm text-slate-500">Daily check for animals on sale or display; submissions appear in inspection and Daily Reports.</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
-          <button className="btn-primary" onClick={() => setRows((current) => [...current, blankShopAnimal()])}><Plus size={15} /> Add animal</button>
+          <button className="btn-primary" onClick={addRow}><Plus size={15} /> Add animal</button>
           <button className="btn-primary" onClick={submitReport} disabled={submitting || !submittedBy}><Send size={15} /> {submitting ? "Submitting..." : "Submit report"}</button>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2 print:hidden">
+        {shopAnimalCategories.map((category) => (
+          <button
+            key={category.id}
+            className={`btn !py-1.5 ${activeCategory === category.id ? "bg-brand-600 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"}`}
+            onClick={() => setActiveCategory(category.id)}
+          >
+            {category.label}
+          </button>
+        ))}
       </div>
 
       <div className="card mb-4 grid gap-3 p-4 md:grid-cols-4 print:grid-cols-4">
@@ -603,7 +648,7 @@ function ShopAnimalsSheet() {
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold">Shop Animal {index + 1}</p>
               {rows.length > 1 && (
-                <button className="btn-secondary !px-2 !py-1 print:hidden" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} title="Remove animal">
+                <button className="btn-secondary !px-2 !py-1 print:hidden" onClick={() => removeRow(row.id)} title="Remove animal">
                   <Trash2 size={14} />
                 </button>
               )}
@@ -611,7 +656,7 @@ function ShopAnimalsSheet() {
             <div className="grid gap-3 md:grid-cols-4">
               <Field label="Pet type">
                 <select className="input" value={row.petType} onChange={(e) => update(row.id, { petType: e.target.value as PetType, breed: "" })}>
-                  {petTypes.filter((item) => !["Dog", "Cat"].includes(item)).map((item) => <option key={item}>{item}</option>)}
+                  {activeConfig.petTypes.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </Field>
               <Field label="Animal name"><input className="input" value={row.animalName} onChange={(e) => update(row.id, { animalName: e.target.value })} placeholder="Optional name" /></Field>
@@ -707,6 +752,7 @@ function GroomingSheet() {
 
 function InspectionSheet() {
   const [unlocked, setUnlocked] = useState(false);
+  const [activeInspectionSource, setActiveInspectionSource] = useState<InspectionSource>("boarding");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -720,6 +766,12 @@ function InspectionSheet() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const visibleAnimals = animals.filter((animal) => animal.source_type === activeInspectionSource);
+  const sourceLabels: Record<InspectionSource, string> = {
+    boarding: "Boarding",
+    grooming: "Grooming",
+    shop: "Shop Animals",
+  };
 
   function defaultDraft(animal: KennelAnimal): InspectionDraft {
     const feedingOk = animal.latest_inspection?.feeding_ok ?? animal.feeding_done;
@@ -865,6 +917,21 @@ function InspectionSheet() {
         <Field label="Inspection shift"><select className="input" value={inspectionShift} onChange={(e) => setInspectionShift(e.target.value)}><option>Morning</option><option>Afternoon</option><option>Night</option></select></Field>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2 print:hidden">
+        {(["boarding", "grooming", "shop"] as InspectionSource[]).map((source) => {
+          const count = animals.filter((animal) => animal.source_type === source).length;
+          return (
+            <button
+              key={source}
+              className={`btn !py-1.5 ${activeInspectionSource === source ? "bg-brand-600 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"}`}
+              onClick={() => setActiveInspectionSource(source)}
+            >
+              {sourceLabels[source]} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       {yesterdaySummary && (
         <div className={`card mb-4 border-l-4 p-4 text-sm ${previousIssues.length ? "border-l-amber-500 text-amber-700" : "border-l-green-500 text-green-700"}`}>
           <p className="font-semibold">{yesterdaySummary}</p>
@@ -882,16 +949,18 @@ function InspectionSheet() {
       {message && <div className={`card mb-4 p-3 text-sm ${message.startsWith("Inspection saved") ? "text-green-700" : "text-red-600"}`}>{message}</div>}
 
       {animals.length === 0 ? (
-        <div className="card p-8 text-sm text-slate-400">No boarding or shop animals submitted for this date yet.</div>
+        <div className="card p-8 text-sm text-slate-400">No boarding, grooming, or shop animals submitted for this date yet.</div>
+      ) : visibleAnimals.length === 0 ? (
+        <div className="card p-8 text-sm text-slate-400">No {sourceLabels[activeInspectionSource].toLowerCase()} records for this date yet.</div>
       ) : (
         <div className="space-y-3">
-          {animals.map((animal, index) => {
+          {visibleAnimals.map((animal, index) => {
             const draft = drafts[animal.key] ?? defaultDraft(animal);
             return (
               <div key={animal.key} className="card p-4">
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold">{animal.label || `${animal.source_type === "shop" ? "Shop Animal" : "Boarding"} ${index + 1}`} - {animal.animal_name || "Unnamed"} <span className="text-sm text-slate-400">({animal.pet_type})</span></p>
+                    <p className="font-semibold">{animal.label || `${sourceLabels[animal.source_type]} ${index + 1}`} - {animal.animal_name || animal.client_name || "Unnamed"} <span className="text-sm text-slate-400">({animal.pet_type})</span></p>
                     <p className="text-xs text-slate-400">
                       {String(animal.category).replace(/_/g, " ")} · {animal.breed || "No breed"} · {[animal.display_area, animal.cage_color, animal.cage_number].filter(Boolean).join(" / ") || "location not set"}
                     </p>
@@ -899,14 +968,19 @@ function InspectionSheet() {
                       <p className="mt-1 text-xs text-slate-500">
                         Client {animal.client_number || "not set"} · checkout {animal.checkout_date || "not set"} · payment {animal.payment_status || "unpaid"}
                       </p>
+                    ) : animal.source_type === "grooming" ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Groomer {animal.groomer_name || "not set"} · client {animal.client_name || "not set"} · phone {animal.client_number || "not set"} · status {animal.grooming_status || "booked"} · payment {animal.payment_status || "unpaid"}
+                      </p>
                     ) : (
                       <p className="mt-1 text-xs text-slate-500">
                         Shop display · quantity {animal.quantity ?? 1}
                       </p>
                     )}
                     <p className="mt-1 text-xs text-slate-500">
-                      Staff report: feeding {animal.feeding_done ? "done" : "missed"} · cleaning {animal.cleaning_done ? "done" : "missed"}
-                      {animal.pet_type === "Dog" ? ` · walking ${animal.walking_done ? "done" : "missed"}` : ""}
+                      {animal.source_type === "grooming"
+                        ? `Grooming report: booking ${animal.feeding_done ? "ok" : "needs check"} · client update ${animal.cleaning_done ? "ok" : "needs check"}`
+                        : `Staff report: feeding ${animal.feeding_done ? "done" : "missed"} · cleaning ${animal.cleaning_done ? "done" : "missed"}${animal.pet_type === "Dog" ? ` · walking ${animal.walking_done ? "done" : "missed"}` : ""}`}
                     </p>
                     {animal.latest_inspection && (
                       <p className="mt-1 text-xs text-blue-600">
@@ -920,8 +994,8 @@ function InspectionSheet() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2 print:hidden">
-                  <DoneToggle label="Fed ok" pressed={draft.feedingOk} onClick={() => updateDraft(animal.key, { feedingOk: !draft.feedingOk })} />
-                  <DoneToggle label="Cage clean" pressed={draft.cleaningOk} onClick={() => updateDraft(animal.key, { cleaningOk: !draft.cleaningOk })} />
+                  <DoneToggle label={animal.source_type === "grooming" ? "Booking ok" : "Fed ok"} pressed={draft.feedingOk} onClick={() => updateDraft(animal.key, { feedingOk: !draft.feedingOk })} />
+                  <DoneToggle label={animal.source_type === "grooming" ? "Client updated" : "Cage clean"} pressed={draft.cleaningOk} onClick={() => updateDraft(animal.key, { cleaningOk: !draft.cleaningOk })} />
                   {animal.pet_type === "Dog" && <DoneToggle label="Walk ok" pressed={draft.walkingOk} onClick={() => updateDraft(animal.key, { walkingOk: !draft.walkingOk })} />}
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">

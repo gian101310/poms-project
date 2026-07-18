@@ -65,7 +65,20 @@ export async function POST(req: Request) {
     action_needed: String(item.action_needed ?? "").trim() || null,
   })).filter((item: any, index: number) => items[index]?.source_type === "shop" && item.shop_animal_report_id && item.row_id && item.pet_type);
 
-  if (kennelRows.length === 0 && shopRows.length === 0) return NextResponse.json({ error: "No valid animals to inspect." }, { status: 400 });
+  const groomingRows = items.map((item: any) => ({
+    store_id: store.id,
+    inspection_date: inspectionDate,
+    grooming_booking_id: String(item.report_id ?? ""),
+    inspector_name: inspectorName,
+    inspection_shift: inspectionShift,
+    booking_ok: Boolean(item.feeding_ok),
+    client_updated_ok: Boolean(item.cleaning_ok),
+    status: item.status === "needs_attention" ? "needs_attention" : "ok",
+    remarks: String(item.remarks ?? "").trim() || null,
+    action_needed: String(item.action_needed ?? "").trim() || null,
+  })).filter((item: any, index: number) => items[index]?.source_type === "grooming" && item.grooming_booking_id);
+
+  if (kennelRows.length === 0 && shopRows.length === 0 && groomingRows.length === 0) return NextResponse.json({ error: "No valid animals to inspect." }, { status: 400 });
 
   if (kennelRows.length > 0) {
     const { error } = await admin.from("kennel_inspections").insert(kennelRows);
@@ -75,6 +88,10 @@ export async function POST(req: Request) {
     const { error } = await admin.from("shop_animal_inspections").insert(shopRows);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (groomingRows.length > 0) {
+    const { error } = await admin.from("grooming_inspections").insert(groomingRows);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  return NextResponse.json({ ok: true, count: kennelRows.length + shopRows.length });
+  return NextResponse.json({ ok: true, count: kennelRows.length + shopRows.length + groomingRows.length });
 }

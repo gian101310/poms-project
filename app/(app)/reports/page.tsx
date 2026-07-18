@@ -44,12 +44,18 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
     .eq("inspection_date", selectedDate)
     .order("created_at", { ascending: false });
   if (selectedBranch) shopInspectionsQuery = shopInspectionsQuery.eq("store_id", selectedBranch);
-  const [{ data: report }, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes] = await Promise.all([
+  let groomingInspectionsQuery = supabase.from("grooming_inspections")
+    .select("id, grooming_booking_id, inspector_name, inspection_shift, booking_ok, client_updated_ok, status, remarks, action_needed, created_at, store_id, grooming_bookings(pet_name, pet_type, client_name)")
+    .eq("inspection_date", selectedDate)
+    .order("created_at", { ascending: false });
+  if (selectedBranch) groomingInspectionsQuery = groomingInspectionsQuery.eq("store_id", selectedBranch);
+  const [{ data: report }, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes, groomingInspectionsRes] = await Promise.all([
     reportQuery ? reportQuery.maybeSingle() : Promise.resolve({ data: null } as any),
     kennelReportsQuery,
     shopAnimalReportsQuery,
     kennelInspectionsQuery,
     shopInspectionsQuery,
+    groomingInspectionsQuery,
   ]);
 
   const c: any = report?.content;
@@ -58,6 +64,17 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
   const kennelInspections = [
     ...(kennelInspectionsRes.error ? [] : (kennelInspectionsRes.data ?? []).map((item: any) => ({ ...item, source_type: "boarding" }))),
     ...(shopInspectionsRes.error ? [] : (shopInspectionsRes.data ?? []).map((item: any) => ({ ...item, source_type: "shop", category: "shop_animals", walking_ok: null }))),
+    ...(groomingInspectionsRes.error ? [] : (groomingInspectionsRes.data ?? []).map((item: any) => ({
+      ...item,
+      source_type: "grooming",
+      pet_type: item.grooming_bookings?.pet_type ?? "Grooming",
+      animal_name: item.grooming_bookings?.pet_name ?? item.grooming_bookings?.client_name,
+      display_area: "Grooming",
+      cage_number: "",
+      feeding_ok: item.booking_ok,
+      cleaning_ok: item.client_updated_ok,
+      walking_ok: null,
+    }))),
   ];
   const kennelTotals = kennelReports.reduce((acc, report) => ({
     animals: acc.animals + Number(report.total_animals ?? 0),
@@ -196,13 +213,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                       <table className="w-full min-w-[780px] text-sm">
                         <thead>
                           <tr>
-                            {["Animal", "Pet", "Qty", "Area", "Cage", "Health", "Care", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
+                            {["Animal", "Category", "Pet", "Qty", "Area", "Cage", "Health", "Care", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
                           </tr>
                         </thead>
                         <tbody>
                           {(report.rows ?? []).map((row: any, index: number) => (
                             <tr key={`${report.id}-${index}`} className="table-row">
                               <td className="td">{row.label ?? `Shop Animal ${index + 1}`}</td>
+                              <td className="td capitalize">{String(row.shop_category ?? "shop_animals").replace(/_/g, " ")}</td>
                               <td className="td">{row.animal_name || "—"} <span className="text-xs text-slate-400">({row.pet_type}{row.breed ? ` · ${row.breed}` : ""})</span></td>
                               <td className="td">{row.quantity ?? 1}</td>
                               <td className="td">{row.display_area || "—"}</td>
@@ -223,8 +241,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
 
           <section>
             <h2 className="mb-3 text-lg font-semibold">Kennel Inspections</h2>
-            {kennelInspectionsRes.error || shopInspectionsRes.error ? (
-              <div className="card p-4 text-sm text-amber-600">Run migrations 020 and 021 to enable all inspection reports.</div>
+            {kennelInspectionsRes.error || shopInspectionsRes.error || groomingInspectionsRes.error ? (
+              <div className="card p-4 text-sm text-amber-600">Run migrations 020, 021, and 022 to enable all inspection reports.</div>
             ) : kennelInspections.length === 0 ? (
               <div className="card p-4 text-sm text-slate-400">No admin inspections submitted for this date.</div>
             ) : (
