@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { todayStr, fmtTime } from "@/lib/tz";
-import { PageHeader, Badge, EmptyState, StatCard, Table } from "@/components/ui";
+import { todayStr, fmtDateTime, fmtTime } from "@/lib/tz";
+import { PageHeader, Badge, EmptyState, StatCard } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
 import { CashierForm } from "./cashier-form";
 
@@ -22,7 +22,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
 
   const reportsQuery = supabase
     .from("cash_reports")
-    .select("*, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), stores(name)")
+    .select("*, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), turnover:profiles!cash_reports_turnover_to_fkey(full_name, employee_code), stores(name)")
     .eq("report_date", date)
     .eq("store_id", selectedBranch)
     .order("created_at", { ascending: false });
@@ -82,6 +82,13 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
   const previousFloatVariance = previousClosing?.closing_float != null && openingFloat != null
     ? Number(openingFloat) - Number(previousClosing.closing_float)
     : null;
+  const opener = openingRow?.profiles
+    ? `${openingRow.profiles.full_name} (${openingRow.profiles.employee_code ?? "-"})`
+    : "Waiting";
+  const closer = closingRow?.profiles
+    ? `${closingRow.profiles.full_name} (${closingRow.profiles.employee_code ?? "-"})`
+    : "Waiting";
+  const flaggedRows = rows.filter((row) => flagFor(row) !== "Clear");
 
   function flagFor(row: any) {
     const flags = [];
@@ -98,6 +105,10 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       flags.push(`Float ${money(Number(row.closing_float) - Number(row.opening_float))}`);
     }
     return flags.length ? flags.join(" · ") : "Clear";
+  }
+
+  function person(profile: any) {
+    return profile?.full_name ? `${profile.full_name} (${profile.employee_code ?? "-"})` : "-";
   }
 
   return (
@@ -123,43 +134,127 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
         <StatCard label="Last Closing vs Opening" value={previousFloatVariance == null ? "Waiting" : money(previousFloatVariance)} hint="Checks yesterday closing against today opening." />
         <StatCard label="Today Logs" value={rows.length} hint="Discrepancies are flagged below after submit." />
       </div>
+      <div className="card mb-6 grid gap-3 p-4 md:grid-cols-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Opened by</p>
+          <p className="mt-1 font-semibold">{opener}</p>
+          <p className="text-xs text-slate-400">{openingRow ? fmtDateTime(openingRow.created_at) : "No opening log yet"}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Closed by</p>
+          <p className="mt-1 font-semibold">{closer}</p>
+          <p className="text-xs text-slate-400">{closingRow ? fmtDateTime(closingRow.created_at) : "No closing log yet"}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Audit flags</p>
+          <p className={flaggedRows.length ? "mt-1 text-lg font-bold text-red-600" : "mt-1 text-lg font-bold text-green-600"}>
+            {flaggedRows.length ? `${flaggedRows.length} needs review` : "Clear"}
+          </p>
+          <p className="text-xs text-slate-400">Use this for next-day audit.</p>
+        </div>
+      </div>
 
       {rows.length === 0 ? (
         <EmptyState message={`No cash reports for ${date}.`} />
       ) : (
-        <Table headers={["Time", "Phase", "Branch", "Submitted By", "Handover", "Flag", "Float", "Cash", "Card", "Variance", "Reason"]}>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td className="td">{fmtTime(r.created_at)}</td>
-              <td className="td"><Badge value={r.phase} /></td>
-              <td className="td text-xs">{r.stores?.name ?? "—"}</td>
-              <td className="td">
-                {`${r.profiles?.full_name ?? "Unknown"} (${r.profiles?.employee_code ?? "—"})`}
-              </td>
-              <td className="td text-xs">{staff.find((s: any) => s.id === r.turnover_to)?.full_name ?? "—"}</td>
-              <td className={r.received_correct === false ? "td font-semibold text-red-600" : "td text-green-600"}>{flagFor(r)}</td>
-              <td className="td">
-                <p>Open {money(r.opening_float)}</p>
-                <p className="text-xs text-slate-400">Close {money(r.closing_float)}</p>
-              </td>
-              <td className="td">
-                <p>{money(r.counted_cash ?? r.cash_sales)}</p>
-                {(r.expected_cash != null || r.counted_cash != null) && <p className="text-xs text-slate-400">Hike {money(r.expected_cash)} · Actual {money(r.counted_cash)}</p>}
-              </td>
-              <td className="td">
-                <p>{money(r.actual_card ?? r.card_sales)}</p>
-                {(r.expected_card != null || r.actual_card != null) && <p className="text-xs text-slate-400">Hike {money(r.expected_card)} · Actual {money(r.actual_card)}</p>}
-              </td>
-              <td className="td">
-                <p>{money(r.missing_amount)}</p>
-                {r.card_variance != null && <p className="text-xs text-slate-400">Card {money(r.card_variance)}</p>}
-                {r.card_tip_amount != null && <p className="text-xs text-slate-400">Tips card {money(r.card_tip_amount)}</p>}
-                {r.shop_purchase_amount != null && <p className="text-xs text-slate-400">Shop buy {money(r.shop_purchase_amount)}</p>}
-              </td>
-              <td className="td max-w-[260px] truncate">{r.variance_reason || r.expense_notes || r.notes || "—"}</td>
-            </tr>
-          ))}
-        </Table>
+        <div className="space-y-3">
+          {rows.map((r) => {
+            const flag = flagFor(r);
+            return (
+              <details key={r.id} className={`card p-0 ${flag === "Clear" ? "" : "border-red-200 dark:border-red-900"}`}>
+                <summary className="grid cursor-pointer gap-3 p-4 marker:text-slate-400 md:grid-cols-[120px_140px_1fr_1fr_1.4fr]">
+                  <div>
+                    <p className="text-xs text-slate-400">Date / time</p>
+                    <p className="font-semibold">{fmtTime(r.created_at)}</p>
+                    <p className="text-xs text-slate-400">{fmtDateTime(r.created_at)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Phase</p>
+                    <Badge value={r.phase} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">{r.phase === "opening" ? "Opened by" : r.phase === "closing" ? "Closed by" : "Submitted by"}</p>
+                    <p className="font-semibold">{person(r.profiles)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Handover</p>
+                    <p>{person(r.turnover)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Audit flag</p>
+                    <p className={flag === "Clear" ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{flag}</p>
+                  </div>
+                </summary>
+                <div className="border-t border-slate-200 p-4 dark:border-slate-800">
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div>
+                      <p className="text-xs text-slate-400">Branch</p>
+                      <p className="font-semibold">{r.stores?.name ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Opening float</p>
+                      <p className="font-semibold">{money(r.opening_float)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Closing float</p>
+                      <p className="font-semibold">{money(r.closing_float)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Balanced</p>
+                      <p className={r.received_correct === false ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{r.received_correct ? "Yes" : "No"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Hike cash</p>
+                      <p className="font-semibold">{money(r.expected_cash)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Actual cash / drop</p>
+                      <p className="font-semibold">{money(r.counted_cash ?? r.cash_sales)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Hike card</p>
+                      <p className="font-semibold">{money(r.expected_card)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Actual card machine</p>
+                      <p className="font-semibold">{money(r.actual_card ?? r.card_sales)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Card tips</p>
+                      <p className="font-semibold">{money(r.card_tip_amount ?? r.tips)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Expenses</p>
+                      <p className="font-semibold">{money(r.shop_purchase_amount ?? r.expenses)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Cash/card variance</p>
+                      <p className={Math.abs(Number(r.missing_amount ?? 0)) >= 0.01 ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{money(r.missing_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Card variance</p>
+                      <p className={Math.abs(Number(r.card_variance ?? 0)) >= 0.01 ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{money(r.card_variance)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-slate-400">Expense notes</p>
+                      <p className="whitespace-pre-wrap text-sm">{r.expense_notes || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Variance details</p>
+                      <p className="whitespace-pre-wrap text-sm">{r.variance_reason || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Staff notes</p>
+                      <p className="whitespace-pre-wrap text-sm">{r.notes || "-"}</p>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            );
+          })}
+        </div>
       )}
       </div>
     </main>

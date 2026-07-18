@@ -57,6 +57,35 @@ export async function submitCashReport(fd: FormData) {
   const openingFloat = money(fd, "opening_float");
   const closingFloat = money(fd, "closing_float");
   const floatVariance = openingFloat != null && closingFloat != null ? Number((closingFloat - openingFloat).toFixed(2)) : null;
+  const { data: previousClosing } = phase === "opening" && openingFloat != null
+    ? await supabase
+      .from("cash_reports")
+      .select("closing_float")
+      .eq("store_id", storeId)
+      .eq("phase", "closing")
+      .lt("report_date", reportDate)
+      .order("report_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    : { data: null };
+  const { data: todayOpening } = phase === "closing" && closingFloat != null
+    ? await supabase
+      .from("cash_reports")
+      .select("opening_float")
+      .eq("store_id", storeId)
+      .eq("report_date", reportDate)
+      .eq("phase", "opening")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    : { data: null };
+  const previousFloatVariance = previousClosing?.closing_float != null && openingFloat != null
+    ? Number((openingFloat - previousClosing.closing_float).toFixed(2))
+    : null;
+  const dayFloatVariance = todayOpening?.opening_float != null && closingFloat != null
+    ? Number((closingFloat - todayOpening.opening_float).toFixed(2))
+    : null;
   const expenseVendor = String(fd.get("expense_vendor") ?? "").trim();
   const expenseVendorCustom = String(fd.get("expense_vendor_custom") ?? "").trim();
   const expenseName = expenseVendor === "Custom" ? expenseVendorCustom : expenseVendor;
@@ -69,10 +98,13 @@ export async function submitCashReport(fd: FormData) {
   ].filter(Boolean).join("\n");
   const varianceSummary = [
     floatVariance != null ? `Float variance: AED ${floatVariance.toFixed(2)}` : "",
+    previousFloatVariance != null ? `Previous closing to opening variance: AED ${previousFloatVariance.toFixed(2)}` : "",
+    dayFloatVariance != null ? `Opening to closing float variance: AED ${dayFloatVariance.toFixed(2)}` : "",
     `Auto cash variance: AED ${cashVariance.toFixed(2)}`,
     `Auto card variance: AED ${cardVariance.toFixed(2)}`,
     `Total variance: AED ${totalVariance.toFixed(2)}`,
   ].filter(Boolean).join("\n");
+  const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
 
   const row = {
     store_id: storeId,
@@ -85,7 +117,7 @@ export async function submitCashReport(fd: FormData) {
     tips: money(fd, "tips"),
     expenses: money(fd, "expenses"),
     turnover_to: turnoverTo,
-    received_correct: Math.abs(totalVariance) < 0.01 && (floatVariance == null || Math.abs(floatVariance) < 0.01),
+    received_correct: Math.abs(totalVariance) < 0.01 && !hasFloatDiscrepancy,
     expected_cash: money(fd, "expected_cash"),
     counted_cash: money(fd, "counted_cash"),
     missing_amount: Number(totalVariance.toFixed(2)),
