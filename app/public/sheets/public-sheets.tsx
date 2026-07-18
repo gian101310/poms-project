@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  CheckCircle2, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Store, Trash2,
+  CheckCircle2, ChevronDown, ChevronRight, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Store, Trash2,
 } from "lucide-react";
 
 type PetType = "Dog" | "Cat" | "Bird" | "Reptile" | "Fish" | "Insect" | "Rabbit" | "Guinea Pig" | "Hamster" | "Sugar Glider" | "Fancy Mouse" | "Rat" | "Degu";
@@ -407,6 +407,7 @@ function BoardingSheet() {
   const [submittedBy, setSubmittedBy] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [reportDate, setReportDate] = useState(today);
   const activeConfig = boardingCategories.find((category) => category.id === activeCategory) ?? boardingCategories[0];
@@ -454,6 +455,30 @@ function BoardingSheet() {
       cleaningDone: true,
       walkingDone: activeCategory === "dogs",
     });
+  }
+
+  function markAllBoardingCompleted() {
+    setRowsByCategory((current) => ({
+      ...current,
+      [activeCategory]: current[activeCategory].map((row) => ({
+        ...row,
+        feedingDone: true,
+        cleaningDone: true,
+        walkingDone: activeCategory === "dogs" ? true : row.walkingDone,
+      })),
+    }));
+    setMessage(`All ${activeConfig.label.toLowerCase()} tasks marked done. Submit report to save it.`);
+  }
+
+  function toggleExpanded(rowId: string) {
+    setExpandedRows((current) => ({ ...current, [rowId]: !current[rowId] }));
+  }
+
+  function setAllRowsExpanded(expanded: boolean) {
+    setExpandedRows((current) => ({
+      ...current,
+      ...Object.fromEntries(rows.map((row) => [row.id, expanded])),
+    }));
   }
 
   function markUpdated(rowId: string) {
@@ -541,6 +566,9 @@ function BoardingSheet() {
           <p className="text-sm text-slate-500">Submit kennel reports by boarding page; submissions appear in Command Center and Daily Reports.</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
+          <button className="btn-secondary" onClick={markAllBoardingCompleted}><CheckCircle2 size={15} /> All boarding done</button>
+          <button className="btn-secondary" onClick={() => setAllRowsExpanded(true)}><ChevronDown size={15} /> Expand all</button>
+          <button className="btn-secondary" onClick={() => setAllRowsExpanded(false)}><ChevronRight size={15} /> Collapse all</button>
           <button className="btn-primary" onClick={addRow}><Plus size={15} /> Add boarding</button>
           <button className="btn-primary" onClick={submitReport} disabled={submitting || !submittedBy}><Send size={15} /> {submitting ? "Submitting..." : "Submit report"}</button>
         </div>
@@ -577,68 +605,44 @@ function BoardingSheet() {
           const paidDays = paidDaysFor(row);
           const extensionDays = diffDays(row.checkoutDate, row.extensionCheckoutDate);
           const overdueDays = Math.max(0, boardingDays - paidDays);
+          const isExpanded = Boolean(expandedRows[row.id]);
+          const pendingCare = [
+            !row.feedingDone ? "feeding" : "",
+            !row.cleaningDone ? "cleaning" : "",
+            activeCategory === "dogs" && !row.walkingDone ? "walking" : "",
+          ].filter(Boolean);
           return (
           <div key={row.id} className="card p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="font-semibold">Boarding {index + 1}</p>
-              {rows.length > 1 && (
-                <button className="btn-secondary !px-2 !py-1 print:hidden" onClick={() => removeRow(row.id)} title="Remove boarding">
-                  <Trash2 size={14} />
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">Boarding {index + 1}</p>
+                <p className="text-sm text-slate-500">
+                  {row.petType || "Pet"} {row.animalName ? `- ${row.animalName}` : "- No name"} · Cage {row.cageNumber || "not set"}
+                </p>
+                <p className={`mt-1 text-xs font-medium ${pendingCare.length ? "text-amber-600" : "text-green-700"}`}>
+                  {pendingCare.length ? `Needs ${pendingCare.join(", ")}` : "All care done"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <button type="button" className="btn-secondary !px-2 !py-1" onClick={() => toggleExpanded(row.id)} title={isExpanded ? "Hide pet details" : "Show pet details"}>
+                  {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Details
                 </button>
-              )}
+                {rows.length > 1 && (
+                  <button className="btn-secondary !px-2 !py-1" onClick={() => removeRow(row.id)} title="Remove boarding">
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-3">
               <Field label="Pet type">
                 <select className="input" value={row.petType} onChange={(e) => update(row.id, { petType: e.target.value as PetType, breed: "" })}>
                   {activeConfig.petTypes.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </Field>
-              <Field label="Animal name"><input className="input" value={row.animalName} onChange={(e) => update(row.id, { animalName: e.target.value })} placeholder="Pet name" /></Field>
-              <Field label="Client number"><input className="input" value={row.clientNumber} onChange={(e) => update(row.id, { clientNumber: e.target.value })} placeholder="Client mobile" /></Field>
-              <Field label="Breed / type">
-                <BreedSearch idPrefix="boarding-breeds" rowId={row.id} petType={row.petType} value={row.breed} onChange={(breed) => update(row.id, { breed })} />
-              </Field>
-              <Field label="Size"><select className="input" value={row.size} onChange={(e) => update(row.id, { size: e.target.value })}>{sizes.map((item) => <option key={item}>{item}</option>)}</select></Field>
-              <Field label="Cage color"><select className="input" value={row.cageColor} onChange={(e) => update(row.id, { cageColor: e.target.value })}><option value="">Select color</option>{cageColors.map((item) => <option key={item}>{item}</option>)}</select></Field>
+              <Field label="Pet name"><input className="input" value={row.animalName} onChange={(e) => update(row.id, { animalName: e.target.value })} placeholder="Pet name" /></Field>
               <Field label="Cage number"><input className="input" value={row.cageNumber} onChange={(e) => update(row.id, { cageNumber: e.target.value })} placeholder="Cage no." /></Field>
-              <Field label="Check-in date"><input className="input" type="date" value={row.checkInDate} onChange={(e) => update(row.id, { checkInDate: e.target.value })} /></Field>
-              <Field label="Checkout date"><input className="input" type="date" value={row.checkoutDate} onChange={(e) => update(row.id, { checkoutDate: e.target.value })} /></Field>
-              <Field label="Number of days"><input className="input" value={boardingDays ? `${boardingDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
-              <Field label="Invoice no."><input className="input" value={row.invoiceNumbers} onChange={(e) => update(row.id, { invoiceNumbers: e.target.value })} placeholder="One or more invoices" /></Field>
-              <Field label="Payment"><select className="input" value={row.paymentStatus} onChange={(e) => update(row.id, { paymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-              <Field label="Paid days">
-                <select className="input" value={row.paidDaysMode} onChange={(e) => update(row.id, { paidDaysMode: e.target.value })}>
-                  {paidDaysModes.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </Field>
-              {row.paidDaysMode === "custom" && <Field label="Custom paid days"><input className="input" type="number" min="0" step="0.5" value={row.customPaidDays} onChange={(e) => update(row.id, { customPaidDays: e.target.value })} /></Field>}
-              <Field label="Paid / overdue days"><input className="input" value={boardingDays ? `${paidDays} paid / ${overdueDays} overdue` : ""} readOnly placeholder="Auto" /></Field>
-              <Field label="Extension checkout"><input className="input" type="date" value={row.extensionCheckoutDate} onChange={(e) => update(row.id, { extensionCheckoutDate: e.target.value })} /></Field>
-              <Field label="Extension days"><input className="input" value={extensionDays ? `${extensionDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
-              <Field label="Extension payment"><select className="input" value={row.extensionPaymentStatus} onChange={(e) => update(row.id, { extensionPaymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-              <Field label="Extension invoice no."><input className="input" value={row.extensionInvoiceNumbers} onChange={(e) => update(row.id, { extensionInvoiceNumbers: e.target.value })} placeholder="Multiple extension invoices" /></Field>
-              <Field label="Health status"><select className="input" value={row.healthStatus} onChange={(e) => update(row.id, { healthStatus: e.target.value })}>{healthStatuses.map((item) => <option key={item}>{item}</option>)}</select></Field>
-              <Field label="Health status report"><input className="input" value={row.report} onChange={(e) => update(row.id, { report: e.target.value })} placeholder="Short report" /></Field>
-              <Field label="Misc / extra charge note"><input className="input" value={row.miscNote} onChange={(e) => update(row.id, { miscNote: e.target.value })} placeholder="Food ran out, extra charge, etc." /></Field>
-            </div>
-            <div className="mt-4 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Brought with pet</p>
-              <div className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
-                {[
-                  ["broughtCage", "Cage"],
-                  ["broughtFood", "Food"],
-                  ["broughtToys", "Toys"],
-                  ["broughtBed", "Bed"],
-                  ["broughtMedicine", "Medicine"],
-                  ["broughtOther", "Other"],
-                ].map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2">
-                    <input type="checkbox" checked={Boolean(row[key as keyof BoardingRow])} onChange={(e) => update(row.id, { [key]: e.target.checked } as Partial<BoardingRow>)} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <input className="input mt-3" value={row.belongingsNote} onChange={(e) => update(row.id, { belongingsNote: e.target.value })} placeholder="Small note for items brought with the pet" />
             </div>
             <div className="mt-4 flex flex-wrap gap-2 print:hidden">
               <button type="button" className="btn-secondary" onClick={() => markAllCompleted(row.id)}><CheckCircle2 size={15} /> All completed</button>
@@ -647,6 +651,56 @@ function BoardingSheet() {
               {activeCategory === "dogs" && <DoneToggle label="Walking done" pressed={row.walkingDone} onClick={() => update(row.id, { walkingDone: !row.walkingDone })} />}
               <button type="button" className="btn-secondary" onClick={() => markUpdated(row.id)}>Mark updated</button>
             </div>
+            {isExpanded && (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <Field label="Client number"><input className="input" value={row.clientNumber} onChange={(e) => update(row.id, { clientNumber: e.target.value })} placeholder="Client mobile" /></Field>
+                  <Field label="Breed / type">
+                    <BreedSearch idPrefix="boarding-breeds" rowId={row.id} petType={row.petType} value={row.breed} onChange={(breed) => update(row.id, { breed })} />
+                  </Field>
+                  <Field label="Size"><select className="input" value={row.size} onChange={(e) => update(row.id, { size: e.target.value })}>{sizes.map((item) => <option key={item}>{item}</option>)}</select></Field>
+                  <Field label="Cage color"><select className="input" value={row.cageColor} onChange={(e) => update(row.id, { cageColor: e.target.value })}><option value="">Select color</option>{cageColors.map((item) => <option key={item}>{item}</option>)}</select></Field>
+                  <Field label="Check-in date"><input className="input" type="date" value={row.checkInDate} onChange={(e) => update(row.id, { checkInDate: e.target.value })} /></Field>
+                  <Field label="Checkout date"><input className="input" type="date" value={row.checkoutDate} onChange={(e) => update(row.id, { checkoutDate: e.target.value })} /></Field>
+                  <Field label="Number of days"><input className="input" value={boardingDays ? `${boardingDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
+                  <Field label="Invoice no."><input className="input" value={row.invoiceNumbers} onChange={(e) => update(row.id, { invoiceNumbers: e.target.value })} placeholder="One or more invoices" /></Field>
+                  <Field label="Payment"><select className="input" value={row.paymentStatus} onChange={(e) => update(row.id, { paymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+                  <Field label="Paid days">
+                    <select className="input" value={row.paidDaysMode} onChange={(e) => update(row.id, { paidDaysMode: e.target.value })}>
+                      {paidDaysModes.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  </Field>
+                  {row.paidDaysMode === "custom" && <Field label="Custom paid days"><input className="input" type="number" min="0" step="0.5" value={row.customPaidDays} onChange={(e) => update(row.id, { customPaidDays: e.target.value })} /></Field>}
+                  <Field label="Paid / overdue days"><input className="input" value={boardingDays ? `${paidDays} paid / ${overdueDays} overdue` : ""} readOnly placeholder="Auto" /></Field>
+                  <Field label="Extension checkout"><input className="input" type="date" value={row.extensionCheckoutDate} onChange={(e) => update(row.id, { extensionCheckoutDate: e.target.value })} /></Field>
+                  <Field label="Extension days"><input className="input" value={extensionDays ? `${extensionDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
+                  <Field label="Extension payment"><select className="input" value={row.extensionPaymentStatus} onChange={(e) => update(row.id, { extensionPaymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+                  <Field label="Extension invoice no."><input className="input" value={row.extensionInvoiceNumbers} onChange={(e) => update(row.id, { extensionInvoiceNumbers: e.target.value })} placeholder="Multiple extension invoices" /></Field>
+                  <Field label="Health status"><select className="input" value={row.healthStatus} onChange={(e) => update(row.id, { healthStatus: e.target.value })}>{healthStatuses.map((item) => <option key={item}>{item}</option>)}</select></Field>
+                  <Field label="Health status report"><input className="input" value={row.report} onChange={(e) => update(row.id, { report: e.target.value })} placeholder="Short report" /></Field>
+                  <Field label="Misc / extra charge note"><input className="input" value={row.miscNote} onChange={(e) => update(row.id, { miscNote: e.target.value })} placeholder="Food ran out, extra charge, etc." /></Field>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Brought with pet</p>
+                  <div className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                    {[
+                      ["broughtCage", "Cage"],
+                      ["broughtFood", "Food"],
+                      ["broughtToys", "Toys"],
+                      ["broughtBed", "Bed"],
+                      ["broughtMedicine", "Medicine"],
+                      ["broughtOther", "Other"],
+                    ].map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2">
+                        <input type="checkbox" checked={Boolean(row[key as keyof BoardingRow])} onChange={(e) => update(row.id, { [key]: e.target.checked } as Partial<BoardingRow>)} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <input className="input mt-3" value={row.belongingsNote} onChange={(e) => update(row.id, { belongingsNote: e.target.value })} placeholder="Small note for items brought with the pet" />
+                </div>
+              </div>
+            )}
             {(row.lastUpdatedBy || row.lastUpdatedAt) && (
               <p className="mt-2 text-xs text-slate-500">
                 Last updated by {row.lastUpdatedBy || "staff"} {row.lastUpdatedAt ? `at ${new Date(row.lastUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
