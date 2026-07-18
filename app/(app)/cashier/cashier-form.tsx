@@ -1,15 +1,57 @@
 "use client";
-import { useRef, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitCashReport } from "./actions";
-import { Save } from "lucide-react";
+import { Calculator, Save } from "lucide-react";
 
-export function CashierForm({ today, staff }: { today: string; staff: any[] }) {
+const expenseVendors = ["Carrefour", "Borders", "Daiso", "Custom"];
+
+function amount(value: string) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function money(value: number) {
+  return `AED ${value.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function CashierForm({ today, staff, groomers }: { today: string; staff: any[]; groomers: any[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [hikeCash, setHikeCash] = useState("");
+  const [hikeCard, setHikeCard] = useState("");
+  const [actualCash, setActualCash] = useState("");
+  const [actualCard, setActualCard] = useState("");
+  const [cardTips, setCardTips] = useState("");
+  const [expenses, setExpenses] = useState("");
+  const [expenseVendor, setExpenseVendor] = useState("Carrefour");
+
+  const calc = useMemo(() => {
+    const tip = amount(cardTips);
+    const exp = amount(expenses);
+    const expectedCashAfterPayouts = amount(hikeCash) - tip - exp;
+    const expectedCardWithTips = amount(hikeCard) + tip;
+    const cashVariance = amount(actualCash) - expectedCashAfterPayouts;
+    const cardVariance = amount(actualCard) - expectedCardWithTips;
+    const totalVariance = cashVariance + cardVariance;
+    return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance };
+  }, [actualCard, actualCash, cardTips, expenses, hikeCard, hikeCash]);
 
   function submit(fd: FormData) {
+    fd.set("cash_sales", actualCash);
+    fd.set("card_sales", actualCard);
+    fd.set("expected_cash", hikeCash);
+    fd.set("counted_cash", actualCash);
+    fd.set("expected_card", hikeCard);
+    fd.set("actual_card", actualCard);
+    fd.set("tips", cardTips);
+    fd.set("card_tip_amount", cardTips);
+    fd.set("expenses", expenses);
+    fd.set("shop_purchase_amount", expenses);
+    fd.set("missing_amount", String(calc.cashVariance.toFixed(2)));
+    fd.set("card_variance", String(calc.cardVariance.toFixed(2)));
+    fd.set("received_correct", Math.abs(calc.totalVariance) < 0.01 ? "yes" : "no");
     start(async () => {
       const result = await submitCashReport(fd);
       if (result?.error) {
@@ -23,7 +65,7 @@ export function CashierForm({ today, staff }: { today: string; staff: any[] }) {
 
   return (
     <form ref={formRef} action={submit} className="card mb-6 space-y-4 p-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
           <label className="label">Date</label>
           <input name="report_date" type="date" defaultValue={today} className="input" required />
@@ -40,9 +82,6 @@ export function CashierForm({ today, staff }: { today: string; staff: any[] }) {
           <label className="label">Opening float</label>
           <input name="opening_float" type="number" min="0" step="0.01" className="input" placeholder="AED" />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
           <label className="label">Turnover to</label>
           <select name="turnover_to" className="input" defaultValue="">
@@ -50,88 +89,117 @@ export function CashierForm({ today, staff }: { today: string; staff: any[] }) {
             {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
           </select>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Hike sales</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="label">Hike cash sales</label>
+            <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+          <div>
+            <label className="label">Hike card sales</label>
+            <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Actual count</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div>
+            <label className="label">Actual cash counted</label>
+            <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+          <div>
+            <label className="label">Actual card machine sales</label>
+            <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+          <div>
+            <label className="label">Closing float</label>
+            <input name="closing_float" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
-          <label className="label">Received correct amount?</label>
-          <select name="received_correct" className="input" defaultValue="">
-            <option value="">Not applicable</option>
-            <option value="yes">Yes, correct</option>
-            <option value="no">No, difference found</option>
+          <label className="label">Card tips amount</label>
+          <input value={cardTips} onChange={(e) => setCardTips(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+        <div>
+          <label className="label">Tip for groomer</label>
+          <select name="card_tip_groomer" className="input" defaultValue="">
+            <option value="">Choose groomer</option>
+            {groomers.map((g) => <option key={g.id} value={g.full_name}>{g.full_name}</option>)}
           </select>
         </div>
         <div>
-          <label className="label">Missing / over amount</label>
-          <input name="missing_amount" type="number" step="0.01" className="input" placeholder="AED, use - for over" />
+          <label className="label">Expenses amount</label>
+          <input value={expenses} onChange={(e) => setExpenses(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        </div>
+        <div>
+          <label className="label">Expense shop</label>
+          <select name="expense_vendor" className="input" value={expenseVendor} onChange={(e) => setExpenseVendor(e.target.value)}>
+            {expenseVendors.map((vendor) => <option key={vendor} value={vendor}>{vendor}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Custom shop name</label>
+          <input name="expense_vendor_custom" className="input" placeholder="Only if Custom" disabled={expenseVendor !== "Custom"} />
+        </div>
+        <div>
+          <label className="label">Expense reason</label>
+          <input name="expense_reason" className="input" placeholder="What was bought / why" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <div>
-          <label className="label">Expected cash</label>
-          <input name="expected_cash" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+      <div className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-4">
+        <div className="flex items-center gap-2 md:col-span-4">
+          <Calculator size={16} className="text-slate-400" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Auto calculation</p>
         </div>
         <div>
-          <label className="label">Counted cash</label>
-          <input name="counted_cash" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          <p className="text-xs text-slate-400">Expected cash after payouts</p>
+          <p className="font-semibold">{money(calc.expectedCashAfterPayouts)}</p>
         </div>
         <div>
-          <label className="label">Closing float</label>
-          <input name="closing_float" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          <p className="text-xs text-slate-400">Expected card with tips</p>
+          <p className="font-semibold">{money(calc.expectedCardWithTips)}</p>
         </div>
         <div>
-          <label className="label">Cash drop</label>
-          <input name="cash_sales" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          <p className="text-xs text-slate-400">Cash variance</p>
+          <p className={Math.abs(calc.cashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cashVariance)}</p>
         </div>
         <div>
-          <label className="label">Card sales</label>
-          <input name="card_sales" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+          <p className="text-xs text-slate-400">Card variance</p>
+          <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
         </div>
-        <div>
-          <label className="label">Tips</label>
-          <input name="tips" type="number" min="0" step="0.01" className="input" placeholder="AED" />
-        </div>
-        <div>
-          <label className="label">Expenses</label>
-          <input name="expenses" type="number" min="0" step="0.01" className="input" placeholder="AED" />
+        <div className="md:col-span-4">
+          <p className="text-xs text-slate-400">Total variance</p>
+          <p className={Math.abs(calc.totalVariance) < 0.01 ? "text-lg font-bold text-green-600" : "text-lg font-bold text-red-600"}>{money(calc.totalVariance)}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <div>
-          <label className="label">Expected card</label>
-          <input name="expected_card" type="number" min="0" step="0.01" className="input" placeholder="AED" />
-        </div>
-        <div>
-          <label className="label">Actual card</label>
-          <input name="actual_card" type="number" min="0" step="0.01" className="input" placeholder="AED" />
-        </div>
-        <div>
-          <label className="label">Card variance</label>
-          <input name="card_variance" type="number" step="0.01" className="input" placeholder="AED, use - if short" />
-        </div>
-        <div>
-          <label className="label">Card tips</label>
-          <input name="card_tip_amount" type="number" min="0" step="0.01" className="input" placeholder="AED" />
-        </div>
-        <div>
-          <label className="label">Shop purchase</label>
-          <input name="shop_purchase_amount" type="number" min="0" step="0.01" className="input" placeholder="AED" />
-        </div>
+      <div>
+        <label className="label">Notes / reason if not balanced</label>
+        <textarea name="notes" className="input" rows={2} placeholder="Add reason if variance is not zero." />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <label className="label">Variance reason</label>
-          <textarea name="variance_reason" className="input" rows={2} placeholder="Example: customer paid tip by card, staff bought shop item, terminal batch mismatch..." />
-        </div>
-        <div>
-          <label className="label">Expense notes</label>
-          <textarea name="expense_notes" className="input" rows={2} />
-        </div>
-        <div>
-          <label className="label">Notes</label>
-          <textarea name="notes" className="input" rows={2} />
-        </div>
-      </div>
+      <input type="hidden" name="cash_sales" />
+      <input type="hidden" name="card_sales" />
+      <input type="hidden" name="tips" />
+      <input type="hidden" name="expenses" />
+      <input type="hidden" name="expected_cash" />
+      <input type="hidden" name="counted_cash" />
+      <input type="hidden" name="missing_amount" />
+      <input type="hidden" name="expected_card" />
+      <input type="hidden" name="actual_card" />
+      <input type="hidden" name="card_variance" />
+      <input type="hidden" name="card_tip_amount" />
+      <input type="hidden" name="shop_purchase_amount" />
+      <input type="hidden" name="received_correct" />
 
       <button className="btn-primary" disabled={pending}>
         <Save size={16} /> {pending ? "Saving..." : "Submit cash report"}

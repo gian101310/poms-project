@@ -23,7 +23,17 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     .order("created_at", { ascending: false });
   if (selectedBranch) reportsQuery = reportsQuery.eq("store_id", selectedBranch);
   if (!isManagerUp(profile.role)) reportsQuery = reportsQuery.eq("store_id", profile.store_id);
-  const [{ data: reports }, { data: branches }, { data: staff }] = await Promise.all([
+  let groomersQuery = supabase.from("profiles")
+    .select("id, full_name, employee_code, store_id, department_assignments!inner(departments!inner(code))")
+    .eq("status", "active")
+    .neq("role", "super_admin")
+    .neq("employee_code", "BOSSG")
+    .eq("department_assignments.departments.code", "GROOM")
+    .order("full_name");
+  if (selectedBranch) groomersQuery = groomersQuery.eq("store_id", selectedBranch);
+  if (!isManagerUp(profile.role)) groomersQuery = groomersQuery.eq("store_id", profile.store_id);
+
+  const [{ data: reports }, { data: branches }, { data: staff }, groomersRes] = await Promise.all([
     reportsQuery,
     isManagerUp(profile.role)
       ? supabase.from("stores").select("id, name, code").eq("is_active", true).order("name")
@@ -35,6 +45,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       .neq("role", "super_admin")
       .neq("employee_code", "BOSSG")
       .order("full_name"),
+    groomersQuery,
   ]);
 
   const rows = (reports ?? []) as any[];
@@ -59,7 +70,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
             )
         } />
 
-      <CashierForm today={date} staff={staff ?? []} />
+      <CashierForm today={date} staff={staff ?? []} groomers={groomersRes.data ?? []} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Cash Drop" value={money(totals.cash_sales)} />
@@ -71,7 +82,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       {rows.length === 0 ? (
         <EmptyState message={`No cash reports for ${date}.`} />
       ) : (
-        <Table headers={["Time", "Phase", "Branch", "Submitted By", "Turnover", "Correct", "Float", "Cash", "Card", "Variance", "Reason"]}>
+        <Table headers={["Time", "Phase", "Branch", "Submitted By", "Turnover", "Balanced", "Float", "Cash", "Card", "Variance", "Reason"]}>
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="td">{fmtTime(r.created_at)}</td>
@@ -86,12 +97,12 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
               <td className="td">{r.received_correct == null ? "—" : r.received_correct ? "Yes" : "No"}</td>
               <td className="td">{money(r.phase === "opening" ? r.opening_float : r.closing_float)}</td>
               <td className="td">
-                <p>{money(r.cash_sales)}</p>
-                {(r.expected_cash != null || r.counted_cash != null) && <p className="text-xs text-slate-400">Exp {money(r.expected_cash)} · Count {money(r.counted_cash)}</p>}
+                <p>{money(r.counted_cash ?? r.cash_sales)}</p>
+                {(r.expected_cash != null || r.counted_cash != null) && <p className="text-xs text-slate-400">Hike {money(r.expected_cash)} · Actual {money(r.counted_cash)}</p>}
               </td>
               <td className="td">
-                <p>{money(r.card_sales)}</p>
-                {(r.expected_card != null || r.actual_card != null) && <p className="text-xs text-slate-400">Exp {money(r.expected_card)} · Actual {money(r.actual_card)}</p>}
+                <p>{money(r.actual_card ?? r.card_sales)}</p>
+                {(r.expected_card != null || r.actual_card != null) && <p className="text-xs text-slate-400">Hike {money(r.expected_card)} · Actual {money(r.actual_card)}</p>}
               </td>
               <td className="td">
                 <p>{money(r.missing_amount)}</p>
