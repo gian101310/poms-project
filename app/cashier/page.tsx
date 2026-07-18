@@ -4,6 +4,7 @@ import { PageHeader, Badge, EmptyState, StatCard } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
 import { CashierForm } from "./cashier-form";
 import { DeleteReportButton } from "./delete-report-button";
+import { CommandCenterExit } from "@/components/command-center-exit";
 
 export const dynamic = "force-dynamic";
 
@@ -158,7 +159,12 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     <main className="min-h-screen bg-slate-50 p-4 text-slate-950 dark:bg-slate-950 dark:text-slate-100 md:p-6">
       <div className="mx-auto max-w-7xl">
       <PageHeader title="Cashier Cash Report" subtitle="Opening, shift-change, and closing money log."
-        action={<BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />} />
+        action={
+          <div className="flex flex-wrap items-end gap-2">
+            <BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />
+            <CommandCenterExit />
+          </div>
+        } />
 
       {selectedBranch ? (
         <CashierForm

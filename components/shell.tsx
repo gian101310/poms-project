@@ -10,6 +10,7 @@ import {
   PawPrint, Menu, X, History, CalendarDays, BarChart3, Settings, QrCode, Send,
   WalletCards, UserCog, Scissors,
 } from "lucide-react";
+import { CommandCenterExit } from "@/components/command-center-exit";
 
 type NavItem = { href: string; label: string; icon: any };
 
@@ -170,6 +171,9 @@ export function Shell({
           </button>
           <div className="hidden md:block" />
           <div className="flex items-center gap-2">
+            {["super_admin", "manager"].includes(role) && pathname !== "/overview" && (
+              <CommandCenterExit />
+            )}
             <Link href="/notifications" className="btn-secondary relative !px-2">
               <Bell size={17} />
               {unread > 0 && (

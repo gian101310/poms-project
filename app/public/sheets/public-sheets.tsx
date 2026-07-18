@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Store, Trash2,
 } from "lucide-react";
+import { CommandCenterExit } from "@/components/command-center-exit";
 
 type PetType = "Dog" | "Cat" | "Bird" | "Reptile" | "Fish" | "Insect" | "Rabbit" | "Guinea Pig" | "Hamster" | "Sugar Glider" | "Fancy Mouse" | "Rat" | "Degu";
 type BoardingCategory = "dogs" | "cats" | "birds" | "reptiles" | "small_animals";
@@ -475,6 +476,7 @@ function Toolbar({
               <ShieldCheck size={15} /> Inspection
             </button>
           </div>
+          <CommandCenterExit />
           <button className="btn-secondary" onClick={reset}><RotateCcw size={15} /> Reset</button>
           <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>
         </div>
