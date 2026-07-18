@@ -18,23 +18,22 @@ function money(value: number) {
 export function CashierForm({
   today,
   storeId,
-  expectedFloat,
+  standardFloat,
   staff,
   groomers,
 }: {
   today: string;
   storeId: string;
-  expectedFloat?: number | null;
+  standardFloat?: number | null;
   staff: any[];
   groomers: any[];
 }) {
-  const defaultFloat = expectedFloat == null ? "" : String(Number(expectedFloat).toFixed(2));
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [phase, setPhase] = useState<"opening" | "shift_change" | "closing">("opening");
-  const [openingFloat, setOpeningFloat] = useState(defaultFloat);
-  const [closingFloat, setClosingFloat] = useState(defaultFloat);
+  const [openingFloat, setOpeningFloat] = useState("");
+  const [closingFloat, setClosingFloat] = useState("");
   const [hikeCash, setHikeCash] = useState("");
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
@@ -51,13 +50,15 @@ export function CashierForm({
     const cashVariance = amount(actualCash) - expectedCashAfterPayouts;
     const cardVariance = amount(actualCard) - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
+    const activeFloat = phase === "closing" ? amount(closingFloat) : amount(openingFloat);
+    const standardVariance = standardFloat == null ? 0 : activeFloat - standardFloat;
     const floatVariance = phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0;
-    return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance };
-  }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat, phase]);
+    return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance };
+  }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat, phase, standardFloat]);
 
   function submit(fd: FormData) {
     fd.set("store_id", storeId);
-    fd.set("opening_float", openingFloat);
+    fd.set("opening_float", phase === "closing" ? "" : openingFloat);
     fd.set("closing_float", phase === "opening" ? "" : closingFloat);
     fd.set("cash_sales", actualCash);
     fd.set("card_sales", actualCard);
@@ -78,11 +79,10 @@ export function CashierForm({
         alert(result.error);
         return;
       }
-      const nextFloat = (phase === "opening" ? openingFloat : closingFloat) || openingFloat || defaultFloat;
       formRef.current?.reset();
       setPhase("opening");
-      setOpeningFloat(nextFloat);
-      setClosingFloat(nextFloat);
+      setOpeningFloat("");
+      setClosingFloat("");
       setHikeCash("");
       setHikeCard("");
       setActualCash("");
@@ -99,11 +99,22 @@ export function CashierForm({
       <input type="hidden" name="store_id" value={storeId} />
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Cash float</p>
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {phase !== "closing" && (
+            <div>
+              <label className="label">{phase === "shift_change" ? "Actual shift float received" : "Actual opening float received"}</label>
+              <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+              <p className="mt-1 text-xs text-slate-500">Count the real cash float received.</p>
+            </div>
+          )}
           <div>
-            <label className="label">Opening float</label>
-            <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-            <p className="mt-1 text-xs text-slate-500">Defaults to the latest closing or shift float and must match it.</p>
+            <label className="label">Standard float</label>
+            <div className="input flex items-center bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+              {standardFloat == null ? "Not set in Command Center" : money(standardFloat)}
+            </div>
+            <p className={Math.abs(calc.standardVariance) < 0.01 ? "mt-1 text-xs text-green-600" : "mt-1 text-xs text-red-600"}>
+              {standardFloat == null ? "Set this per branch on Command Center." : `Difference: ${money(calc.standardVariance)}`}
+            </p>
           </div>
         </div>
       </div>
@@ -165,8 +176,10 @@ export function CashierForm({
             <div>
               <label className="label">{phase === "shift_change" ? "Shift float" : "Closing float"}</label>
               <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-              <p className="mt-1 text-xs text-slate-500">
-                {phase === "shift_change" ? "Must match opening float before handover." : "Must match opening float at closing."}
+              <p className={standardFloat != null && Math.abs(amount(closingFloat) - standardFloat) >= 0.01 ? "mt-1 text-xs text-red-600" : "mt-1 text-xs text-slate-500"}>
+                {standardFloat == null
+                  ? "Set the standard float in Command Center."
+                  : `Must match standard float ${money(standardFloat)}.`}
               </p>
             </div>
           )}
@@ -231,6 +244,12 @@ export function CashierForm({
           <div>
             <p className="text-xs text-slate-400">{phase === "shift_change" ? "Shift float variance" : "Closing float variance"}</p>
             <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.floatVariance)}</p>
+          </div>
+        )}
+        {standardFloat != null && (
+          <div>
+            <p className="text-xs text-slate-400">Standard float variance</p>
+            <p className={Math.abs(calc.standardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{money(calc.standardVariance)}</p>
           </div>
         )}
         <div className="md:col-span-4">

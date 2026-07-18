@@ -37,7 +37,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     .eq("store_id", selectedBranch)
     .order("full_name");
 
-  const [{ data: reports }, groomersRes, { data: groomAssignments }, { data: rawStaff }, { data: previousClosing }] = await Promise.all([
+  const [{ data: reports }, groomersRes, { data: groomAssignments }, { data: rawStaff }, { data: previousClosing }, { data: standardFloatRow }] = await Promise.all([
     reportsQuery,
     groomersQuery,
     supabase
@@ -63,6 +63,12 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("app_settings")
+      .select("value")
+      .eq("store_id", selectedBranch)
+      .eq("key", "standard_cash_float")
+      .maybeSingle(),
   ]);
 
   const groomerIds = new Set((groomAssignments ?? []).map((row: any) => row.profile_id));
@@ -77,8 +83,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
   const sortedRows = [...rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   const openingRow = sortedRows.find((row) => row.phase === "opening");
   const closingRow = [...sortedRows].reverse().find((row) => row.phase === "closing");
-  const latestFloatRow = [...sortedRows].reverse().find((row) => row.closing_float != null || row.opening_float != null);
-  const expectedFloat = latestFloatRow?.closing_float ?? latestFloatRow?.opening_float ?? previousClosing?.closing_float ?? null;
+  const standardFloat = standardFloatRow?.value == null ? null : Number(standardFloatRow.value);
   const previousSameDayFloatById = new Map<string, number>();
   let runningFloat: number | null = null;
   for (const row of sortedRows) {
@@ -134,10 +139,10 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
 
       {selectedBranch ? (
         <CashierForm
-          key={`${selectedBranch}-${date}-${expectedFloat ?? "new"}`}
+          key={`${selectedBranch}-${date}-${standardFloat ?? "new"}`}
           today={date}
           storeId={selectedBranch}
-          expectedFloat={expectedFloat}
+          standardFloat={standardFloat}
           staff={staff}
           groomers={groomersRes.data ?? []}
         />

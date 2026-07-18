@@ -2,8 +2,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { verifyTask } from "../verify/actions";
-import { addFollowup, toggleDelivery } from "./actions";
-import { CheckCheck, NotebookPen, Truck } from "lucide-react";
+import { addFollowup, setStandardCashFloat, toggleDelivery } from "./actions";
+import { CheckCheck, NotebookPen, Save, Truck } from "lucide-react";
 
 export function InlineVerify({ taskId }: { taskId: string }) {
   const [pending, start] = useTransition();
@@ -93,5 +93,48 @@ export function DeliveryToggle({ profileId, isOut }: { profileId: string; isOut:
     >
       <Truck size={13} /> {pending ? "Saving..." : isOut ? "On Delivery" : "Send Delivery"}
     </button>
+  );
+}
+
+export function StandardFloatForm({
+  storeId,
+  currentValue,
+}: {
+  storeId: string;
+  currentValue: number | null;
+}) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  return (
+    <form
+      className="card mb-6 flex flex-wrap items-end gap-3 p-4"
+      action={(fd) => start(async () => {
+        const r = await setStandardCashFloat(fd);
+        if (r?.error) alert(r.error);
+        router.refresh();
+      })}
+    >
+      <input type="hidden" name="store_id" value={storeId} />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cashier standard float</p>
+        <p className="mt-1 text-sm text-slate-500">Fixed till float target used to flag cashier discrepancies.</p>
+      </div>
+      <div>
+        <label className="label">Standard float</label>
+        <input
+          name="standard_cash_float"
+          type="number"
+          min="0"
+          step="0.01"
+          className="input !w-40"
+          defaultValue={currentValue == null ? "" : Number(currentValue).toFixed(2)}
+          placeholder="AED"
+        />
+      </div>
+      <button className="btn-primary" disabled={pending}>
+        <Save size={15} /> {pending ? "Saving..." : "Save"}
+      </button>
+    </form>
   );
 }

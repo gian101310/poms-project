@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, StatCard, Badge, EmptyState, Bar } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
-import { DeliveryToggle, InlineVerify, FollowupButton } from "./overview-actions-ui";
+import { DeliveryToggle, InlineVerify, FollowupButton, StandardFloatForm } from "./overview-actions-ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +37,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   let followQuery = supabase.from("followup_tasks").select("*, departments!inner(name, store_id), profiles!followup_tasks_profile_id_fkey(full_name)")
       .is("consumed_at", null).order("target_date");
   let cashQuery = supabase.from("cash_reports").select("phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, created_at, store_id").eq("report_date", date);
+  let standardFloatQuery = supabase.from("app_settings").select("store_id, value").eq("key", "standard_cash_float");
   let breakQuery = supabase.from("break_sessions")
       .select("id, profile_id, started_at, ended_at, duration_minutes, flagged, flag_reason, profiles(full_name, employee_code)")
       .eq("work_date", date)
@@ -73,6 +74,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     deptsQuery = deptsQuery.eq("store_id", selectedBranch);
     followQuery = followQuery.eq("departments.store_id", selectedBranch);
     cashQuery = cashQuery.eq("store_id", selectedBranch);
+    standardFloatQuery = standardFloatQuery.eq("store_id", selectedBranch);
     breakQuery = breakQuery.eq("store_id", selectedBranch);
     profilesQuery = profilesQuery.eq("store_id", selectedBranch);
     schedulesQuery = schedulesQuery.eq("profiles.store_id", selectedBranch);
@@ -114,7 +116,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     .order("created_at", { ascending: false });
   if (selectedBranch) groomingInspectionsQuery = groomingInspectionsQuery.eq("store_id", selectedBranch);
 
-  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes, groomingInspectionsRes] = await Promise.all([
+  const [branchesRes, instRes, attRes, incRes, deptsRes, followRes, cashRes, standardFloatRes, breakRes, profilesRes, schedulesRes, leaveRes, deliveryRes, groomingRes, groomingMonthRes, boardingRes, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes, groomingInspectionsRes] = await Promise.all([
     supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     instQuery,
     attQuery,
@@ -122,6 +124,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     deptsQuery,
     followQuery,
     cashQuery,
+    standardFloatQuery,
     breakQuery,
     profilesQuery,
     schedulesQuery,
@@ -148,6 +151,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
   const blocked = allTasks.filter((t: any) => t.blocked).length;
   const onTime = allTasks.filter((t: any) => ["completed", "verified"].includes(t.status) && !t.is_overdue).length;
   const cashReports = (cashRes.data ?? []) as any[];
+  const standardFloatRows = (standardFloatRes.data ?? []) as any[];
+  const selectedStandardFloatRow = selectedBranch
+    ? standardFloatRows.find((row: any) => row.store_id === selectedBranch)
+    : null;
+  const selectedStandardFloat = selectedStandardFloatRow ? Number(selectedStandardFloatRow.value) : null;
   const breakSessions = (breakRes.data ?? []) as any[];
   const activeBreakMap = new Map(breakSessions.filter((b: any) => !b.ended_at).map((b: any) => [b.profile_id, b]));
   const staffProfiles = (profilesRes.data ?? []) as any[];
@@ -317,6 +325,15 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           <StatCard label="Inspections" value={kennelInspections.length} hint={`${kennelInspectionIssues.length} issue(s)`} />
         </div>
       </div>
+
+      {selectedBranch ? (
+        <StandardFloatForm storeId={selectedBranch} currentValue={selectedStandardFloat} />
+      ) : (
+        <div className="card mb-6 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cashier standard float</p>
+          <p className="mt-1 text-sm text-slate-500">Choose one branch to set the fixed cashier float target.</p>
+        </div>
+      )}
 
       <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

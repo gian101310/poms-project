@@ -58,6 +58,17 @@ export async function submitCashReport(fd: FormData) {
   const openingFloat = money(fd, "opening_float");
   const closingFloat = phase === "opening" ? null : money(fd, "closing_float");
   const floatVariance = openingFloat != null && closingFloat != null ? Number((closingFloat - openingFloat).toFixed(2)) : null;
+  const { data: standardFloatRow } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("store_id", storeId)
+    .eq("key", "standard_cash_float")
+    .maybeSingle();
+  const standardFloat = standardFloatRow?.value == null ? null : Number(standardFloatRow.value);
+  const activeFloat = phase === "closing" ? closingFloat : openingFloat;
+  const standardFloatVariance = standardFloat != null && activeFloat != null
+    ? Number((activeFloat - standardFloat).toFixed(2))
+    : null;
   const { data: previousClosing } = phase === "opening" && openingFloat != null
     ? await supabase
       .from("cash_reports")
@@ -116,11 +127,12 @@ export async function submitCashReport(fd: FormData) {
     previousFloatVariance != null ? `Previous closing to opening variance: AED ${previousFloatVariance.toFixed(2)}` : "",
     dayFloatVariance != null ? `Opening to closing float variance: AED ${dayFloatVariance.toFixed(2)}` : "",
     shiftFloatVariance != null ? `Previous shift to current opening float variance: AED ${shiftFloatVariance.toFixed(2)}` : "",
+    standardFloatVariance != null ? `Standard float variance: AED ${standardFloatVariance.toFixed(2)}` : "",
     `Auto cash variance: AED ${cashVariance.toFixed(2)}`,
     `Auto card variance: AED ${cardVariance.toFixed(2)}`,
     `Total variance: AED ${totalVariance.toFixed(2)}`,
   ].filter(Boolean).join("\n");
-  const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance, shiftFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
+  const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance, shiftFloatVariance, standardFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
 
   const row = {
     store_id: storeId,

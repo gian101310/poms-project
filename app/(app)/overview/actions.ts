@@ -60,3 +60,23 @@ export async function toggleDelivery(profileId: string, currentlyOut: boolean) {
   revalidatePath("/overview");
   return error ? { error: error.message } : { ok: true };
 }
+
+export async function setStandardCashFloat(fd: FormData) {
+  await requireRole(["super_admin", "manager"]);
+  const storeId = String(fd.get("store_id") ?? "");
+  const rawAmount = String(fd.get("standard_cash_float") ?? "").trim();
+  const amount = Number(rawAmount);
+  if (!storeId) return { error: "Choose a branch first." };
+  if (!Number.isFinite(amount) || amount < 0) return { error: "Enter a valid standard float amount." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("app_settings").upsert({
+    store_id: storeId,
+    key: "standard_cash_float",
+    value: Number(amount.toFixed(2)),
+  }, { onConflict: "store_id,key" });
+
+  revalidatePath("/overview");
+  revalidatePath("/cashier");
+  return error ? { error: error.message } : { ok: true };
+}
