@@ -32,6 +32,7 @@ export function CashierForm({
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [phase, setPhase] = useState<"opening" | "shift_change" | "closing">("opening");
   const [openingFloat, setOpeningFloat] = useState(defaultFloat);
   const [closingFloat, setClosingFloat] = useState(defaultFloat);
   const [hikeCash, setHikeCash] = useState("");
@@ -50,14 +51,14 @@ export function CashierForm({
     const cashVariance = amount(actualCash) - expectedCashAfterPayouts;
     const cardVariance = amount(actualCard) - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
-    const floatVariance = openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0;
+    const floatVariance = phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0;
     return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance };
-  }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat]);
+  }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat, phase]);
 
   function submit(fd: FormData) {
     fd.set("store_id", storeId);
     fd.set("opening_float", openingFloat);
-    fd.set("closing_float", closingFloat);
+    fd.set("closing_float", phase === "opening" ? "" : closingFloat);
     fd.set("cash_sales", actualCash);
     fd.set("card_sales", actualCard);
     fd.set("expected_cash", hikeCash);
@@ -77,8 +78,9 @@ export function CashierForm({
         alert(result.error);
         return;
       }
-      const nextFloat = openingFloat || closingFloat || defaultFloat;
+      const nextFloat = (phase === "opening" ? openingFloat : closingFloat) || openingFloat || defaultFloat;
       formRef.current?.reset();
+      setPhase("opening");
       setOpeningFloat(nextFloat);
       setClosingFloat(nextFloat);
       setHikeCash("");
@@ -97,16 +99,11 @@ export function CashierForm({
       <input type="hidden" name="store_id" value={storeId} />
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Cash float</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="label">Opening float</label>
             <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-            <p className="mt-1 text-xs text-slate-500">This must match the last closing/shift float.</p>
-          </div>
-          <div>
-            <label className="label">Closing float</label>
-            <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-            <p className="mt-1 text-xs text-slate-500">This should stay the same as opening float.</p>
+            <p className="mt-1 text-xs text-slate-500">Defaults to the latest closing or shift float and must match it.</p>
           </div>
         </div>
       </div>
@@ -117,7 +114,7 @@ export function CashierForm({
         </div>
         <div>
           <label className="label">Phase</label>
-          <select name="phase" className="input" defaultValue="opening" required>
+          <select name="phase" className="input" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)} required>
             <option value="opening">Opening</option>
             <option value="shift_change">Shift change</option>
             <option value="closing">Closing</option>
@@ -154,8 +151,8 @@ export function CashierForm({
       </div>
 
       <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Actual count</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing count" : phase === "shift_change" ? "Shift count" : "Actual count"}</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
             <label className="label">Actual card machine sales</label>
             <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
@@ -164,6 +161,15 @@ export function CashierForm({
             <label className="label">Actual cash / money drop</label>
             <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
+          {phase !== "opening" && (
+            <div>
+              <label className="label">{phase === "shift_change" ? "Shift float" : "Closing float"}</label>
+              <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+              <p className="mt-1 text-xs text-slate-500">
+                {phase === "shift_change" ? "Must match opening float before handover." : "Must match opening float at closing."}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -221,10 +227,12 @@ export function CashierForm({
           <p className="text-xs text-slate-400">Card variance</p>
           <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
         </div>
-        <div>
-          <p className="text-xs text-slate-400">Float variance</p>
-          <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.floatVariance)}</p>
-        </div>
+        {phase !== "opening" && (
+          <div>
+            <p className="text-xs text-slate-400">{phase === "shift_change" ? "Shift float variance" : "Closing float variance"}</p>
+            <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.floatVariance)}</p>
+          </div>
+        )}
         <div className="md:col-span-4">
           <p className="text-xs text-slate-400">Total variance</p>
           <p className={Math.abs(calc.totalVariance) < 0.01 ? "text-lg font-bold text-green-600" : "text-lg font-bold text-red-600"}>{money(calc.totalVariance)}</p>

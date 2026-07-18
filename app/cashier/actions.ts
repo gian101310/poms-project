@@ -56,7 +56,7 @@ export async function submitCashReport(fd: FormData) {
   const cardVariance = actualCard - (hikeCard + cardTips);
   const totalVariance = cashVariance + cardVariance;
   const openingFloat = money(fd, "opening_float");
-  const closingFloat = money(fd, "closing_float");
+  const closingFloat = phase === "opening" ? null : money(fd, "closing_float");
   const floatVariance = openingFloat != null && closingFloat != null ? Number((closingFloat - openingFloat).toFixed(2)) : null;
   const { data: previousClosing } = phase === "opening" && openingFloat != null
     ? await supabase
