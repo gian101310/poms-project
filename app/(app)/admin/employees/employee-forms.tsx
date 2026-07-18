@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, KeyRound, Power, Pencil, CalendarOff, Copy, RefreshCw, X } from "lucide-react";
+import { UserPlus, KeyRound, Power, Pencil, CalendarOff, Copy, Eye, EyeOff, RefreshCw, X } from "lucide-react";
 
 function Modal({ title, open, onClose, children }: any) {
   if (!open) return null;
@@ -41,6 +41,7 @@ function generatePassword() {
 
 function PasswordReveal({ employee, password, onClose }: { employee: string; password: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [visible, setVisible] = useState(false);
   async function copy() {
     await navigator.clipboard.writeText(password);
     setCopied(true);
@@ -54,7 +55,14 @@ function PasswordReveal({ employee, password, onClose }: { employee: string; pas
         </p>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
           <p className="text-xs uppercase tracking-wide text-slate-400">Password</p>
-          <p className="mt-1 break-all font-mono text-lg font-semibold">{password}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="min-w-0 flex-1 break-all font-mono text-lg font-semibold">
+              {visible ? password : "•".repeat(Math.min(password.length, 16))}
+            </p>
+            <button className="btn-secondary !px-2" type="button" onClick={() => setVisible((current) => !current)}>
+              {visible ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn-primary" onClick={copy}><Copy size={16} /> {copied ? "Copied" : "Copy"}</button>
@@ -112,6 +120,7 @@ export function EmployeeForm({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState(generatePassword());
+  const [showPassword, setShowPassword] = useState(false);
   const [reveal, setReveal] = useState<{ employee: string; password: string } | null>(null);
   const router = useRouter();
 
@@ -168,8 +177,11 @@ export function EmployeeForm({
             <div>
               <label className="label">Password *</label>
               <div className="flex gap-1">
-                <input name="password" type="text" className="input font-mono" minLength={8} value={password}
+                <input name="password" type={showPassword ? "text" : "password"} className="input font-mono" minLength={8} value={password}
                   onChange={(e) => setPassword(e.target.value)} required />
+                <button type="button" className="btn-secondary !px-2" title={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((current) => !current)}>
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
                 <button type="button" className="btn-secondary !px-2" title="Generate password" onClick={() => setPassword(generatePassword())}>
                   <RefreshCw size={14} />
                 </button>
