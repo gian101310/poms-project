@@ -357,7 +357,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
         </div>
       </div>
 
-      <details open className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Staff, Attendance, Leave & Shifts</summary>
         <div className="px-4 pb-4">
       <section className="mb-6">
@@ -659,7 +659,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
         </div>
       </details>
 
-      <details open className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Cashier</summary>
         <div className="px-4 pb-4">
       {selectedBranch ? (
