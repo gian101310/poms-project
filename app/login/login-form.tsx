@@ -2,7 +2,7 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { PawPrint } from "lucide-react";
+import { Eye, EyeOff, PawPrint } from "lucide-react";
 
 function getPosition(timeoutMs = 12000): Promise<{ lat: number; lng: number } | null> {
   return new Promise((resolve) => {
@@ -20,6 +20,7 @@ function LoginFormInner({ portalName }: { portalName: string }) {
   const params = useSearchParams();
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(
     params.get("error") === "disabled"
@@ -117,8 +118,24 @@ function LoginFormInner({ portalName }: { portalName: string }) {
           </div>
           <div>
             <label className="label">Password</label>
-            <input className="input" type="password" value={password}
-              onChange={(e) => setPassword(e.target.value)} required />
+            <div className="relative">
+              <input
+                className="input pr-11"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button className="btn-primary w-full" disabled={loading}>

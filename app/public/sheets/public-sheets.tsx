@@ -1433,8 +1433,20 @@ function InspectionSheet() {
 }
 
 export function PublicSheets() {
-  const [active, setActive] = useState<PublicSheetTab>("boarding");
+  const [active, setActive] = useState<PublicSheetTab>(() => {
+    if (typeof window === "undefined") return "boarding";
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return ["boarding", "shop", "grooming", "inspection"].includes(tab ?? "")
+      ? tab as PublicSheetTab
+      : "boarding";
+  });
   const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", active);
+    window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+  }, [active]);
 
   return (
     <main key={version} className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">

@@ -4,6 +4,7 @@ import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, StatCard, Badge, EmptyState, Bar } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
 import { DeliveryToggle, InlineVerify, FollowupButton } from "./overview-actions-ui";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -217,6 +218,16 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     verifiedPct: done ? Math.round((verified / done) * 100) : 0,
     onTimePct: allTasks.length ? Math.round((onTime / allTasks.length) * 100) : 0,
   };
+  const quickDateParam = `date=${encodeURIComponent(date)}${selectedBranch ? `&branch=${encodeURIComponent(selectedBranch)}` : ""}`;
+  const quickLinks = [
+    { label: "Cashier", href: `/cashier?${quickDateParam}`, hint: "Opening, turnover, closing" },
+    { label: "Grooming", href: `/grooming?${quickDateParam}`, hint: "Bookings and groomer progress" },
+    { label: "Boarding", href: "/public/sheets?tab=boarding", hint: "Public boarding sheet" },
+    { label: "Shop Animals", href: "/public/sheets?tab=shop", hint: "Public shop animal sheet" },
+    { label: "Grooming Sheet", href: "/public/sheets?tab=grooming", hint: "Public grooming request sheet" },
+    { label: "Inspection", href: "/public/sheets?tab=inspection", hint: "Admin inspection sheet" },
+    { label: "Daily Reports", href: `/reports?${quickDateParam}`, hint: "Submitted reports" },
+  ];
 
   // group instances by department
   const byDept = new Map<string, { name: string; instances: any[] }>();
@@ -272,6 +283,20 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
       <div className="sticky top-[57px] z-20 -mx-4 mb-6 border-b border-slate-200 bg-slate-50/95 px-4 pb-3 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 md:-mx-6 md:px-6">
         <PageHeader title="Command Center" subtitle={`Every department, every employee — ${date}`}
           action={<BranchFilter branches={branchesRes.data ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />} />
+
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+          {quickLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-brand-300 hover:text-brand-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-brand-700"
+              title={item.hint}
+            >
+              {item.label}
+              <span className="ml-2 text-xs font-normal text-slate-400">{item.hint}</span>
+            </Link>
+          ))}
+        </div>
 
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-8">
           <StatCard label="Completion" value={`${kpi.completion}%`} hint={`${done}/${allTasks.length} tasks`} />
