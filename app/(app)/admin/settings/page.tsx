@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/session";
+import { isProjectOwner, requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Table } from "@/components/ui";
 import { SettingRow } from "./setting-forms";
@@ -27,22 +27,29 @@ const DESCRIPTIONS: Record<string, string> = {
   absent_cutoff_time: "Time of day when no-shows are marked absent",
   task_tags: "Available task tags (JSON array)",
 };
+const PROJECT_ONLY_KEYS = new Set(["project_enabled", "task_scheduling_enabled"]);
 
 export default async function SettingsPage() {
-  await requireRole(["super_admin"]);
+  const profile = await requireRole(["super_admin", "manager"]);
+  const canManageProject = isProjectOwner(profile);
   const supabase = createClient();
   const [{ data: settings }, projectControls] = await Promise.all([
     supabase.from("app_settings").select("*, stores(name)").order("key"),
     getProjectControlSettings(),
   ]);
+  const visibleSettings = canManageProject
+    ? (settings ?? [])
+    : (settings ?? []).filter((setting: any) => !PROJECT_ONLY_KEYS.has(setting.key));
 
   return (
     <div>
       <PageHeader title="Company Settings"
         subtitle="Timings, security, and thresholds — everything configurable lives here. Values are JSON." />
-      <ProjectControls projectEnabled={projectControls.projectEnabled} schedulingEnabled={projectControls.taskSchedulingEnabled} />
+      {canManageProject && (
+        <ProjectControls projectEnabled={projectControls.projectEnabled} schedulingEnabled={projectControls.taskSchedulingEnabled} />
+      )}
       <Table headers={["Branch", "Setting", "Value", ""]}>
-        {(settings ?? []).map((s: any) => (
+        {visibleSettings.map((s: any) => (
           <SettingRow key={s.id} setting={s} description={DESCRIPTIONS[s.key]} />
         ))}
       </Table>

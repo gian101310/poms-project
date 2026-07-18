@@ -1,6 +1,6 @@
 "use server";
 import { requireRole } from "@/lib/session";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 function codeFromName(name: string) {
@@ -8,8 +8,8 @@ function codeFromName(name: string) {
 }
 
 export async function createBranch(fd: FormData) {
-  const profile = await requireRole(["super_admin"]);
-  const supabase = createClient();
+  const profile = await requireRole(["super_admin", "manager"]);
+  const supabase = createAdminClient();
   const name = String(fd.get("name") ?? "").trim();
   const code = String(fd.get("code") ?? "").trim().toUpperCase() || codeFromName(name);
   if (!name || !code) return { error: "Branch name and code are required." };
@@ -64,8 +64,8 @@ export async function createBranch(fd: FormData) {
 }
 
 export async function updateBranch(id: string, fd: FormData) {
-  await requireRole(["super_admin"]);
-  const supabase = createClient();
+  await requireRole(["super_admin", "manager"]);
+  const supabase = createAdminClient();
   const { error } = await supabase.from("stores").update({
     name: String(fd.get("name") ?? "").trim(),
     code: String(fd.get("code") ?? "").trim().toUpperCase(),

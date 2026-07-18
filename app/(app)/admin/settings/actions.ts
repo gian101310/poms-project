@@ -1,17 +1,19 @@
 "use server";
-import { requireRole } from "@/lib/session";
-import { createClient } from "@/lib/supabase/server";
+import { isProjectOwner, requireRole } from "@/lib/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function updateSetting(id: string, rawJson: string) {
-  await requireRole(["super_admin"]);
+  const profile = await requireRole(["super_admin", "manager"]);
   let value: any;
   try { value = JSON.parse(rawJson); } catch {
     return { error: 'Value must be valid JSON — wrap text in quotes, e.g. "flag"' };
   }
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { data: setting } = await supabase.from("app_settings").select("key").eq("id", id).maybeSingle();
+  if (["project_enabled", "task_scheduling_enabled"].includes(setting?.key ?? "") && !isProjectOwner(profile)) {
+    return { error: "Forbidden" };
+  }
   const query = supabase.from("app_settings").update({ value });
   const { error } = setting?.key === "portal_name"
     ? await query.eq("key", "portal_name")
@@ -28,11 +30,12 @@ async function requireSuperAdminActionPassword(fd: FormData) {
 }
 
 export async function setBooleanSetting(key: "project_enabled" | "task_scheduling_enabled", enabled: boolean, fd: FormData) {
-  await requireRole(["super_admin"]);
+  const profile = await requireRole(["super_admin"]);
+  if (!isProjectOwner(profile)) return { error: "Forbidden" };
   const passwordError = await requireSuperAdminActionPassword(fd);
   if (passwordError) return { error: passwordError };
 
-  const supabase = createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase.from("app_settings").update({ value: enabled }).eq("key", key);
   revalidatePath("/admin/settings");
   revalidatePath("/");
@@ -40,7 +43,8 @@ export async function setBooleanSetting(key: "project_enabled" | "task_schedulin
 }
 
 export async function resetGeneratedTasks(fd: FormData) {
-  await requireRole(["super_admin"]);
+  const profile = await requireRole(["super_admin"]);
+  if (!isProjectOwner(profile)) return { error: "Forbidden" };
   const passwordError = await requireSuperAdminActionPassword(fd);
   if (passwordError) return { error: passwordError };
 

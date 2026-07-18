@@ -8,7 +8,7 @@ import { EmployeeForm, EmployeeRowActions, EditEmployee } from "./employee-forms
 export const dynamic = "force-dynamic";
 
 export default async function EmployeesPage({ searchParams }: { searchParams: { branch?: string } }) {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
 

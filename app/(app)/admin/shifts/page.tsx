@@ -8,7 +8,7 @@ import { fmtDate } from "@/lib/tz";
 export const dynamic = "force-dynamic";
 
 export default async function ShiftsPage() {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const today = todayStr();
 

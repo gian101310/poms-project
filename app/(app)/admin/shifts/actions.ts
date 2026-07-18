@@ -1,6 +1,6 @@
 "use server";
 import { requireRole } from "@/lib/session";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { dow } from "@/lib/tz";
 import { revalidatePath } from "next/cache";
 
@@ -16,8 +16,8 @@ function shiftPayload(fd: FormData) {
 }
 
 export async function createShift(fd: FormData) {
-  const profile = await requireRole(["super_admin"]);
-  const supabase = createClient();
+  const profile = await requireRole(["super_admin", "manager"]);
+  const supabase = createAdminClient();
   const { error } = await supabase.from("shifts").insert({
     store_id: profile.store_id, ...shiftPayload(fd),
   });
@@ -26,8 +26,8 @@ export async function createShift(fd: FormData) {
 }
 
 export async function updateShift(id: string, fd: FormData) {
-  await requireRole(["super_admin"]);
-  const supabase = createClient();
+  await requireRole(["super_admin", "manager"]);
+  const supabase = createAdminClient();
   const { error } = await supabase.from("shifts").update({
     ...shiftPayload(fd),
     is_active: fd.get("is_active") === "on",
@@ -37,8 +37,8 @@ export async function updateShift(id: string, fd: FormData) {
 }
 
 export async function assignSchedule(fd: FormData) {
-  const profile = await requireRole(["super_admin"]);
-  const supabase = createClient();
+  const profile = await requireRole(["super_admin", "manager"]);
+  const supabase = createAdminClient();
   const profileId = String(fd.get("profile_id"));
   const shiftId = String(fd.get("shift_id"));
   const from = String(fd.get("date_from"));
@@ -70,8 +70,8 @@ export async function assignSchedule(fd: FormData) {
 // shifts every N weeks (anchored on a Monday). Each cycle everyone moves to
 // the next shift in the list. Approved-leave days are preserved.
 export async function generateRotation(fd: FormData) {
-  const admin = await requireRole(["super_admin"]);
-  const supabase = createClient();
+  const admin = await requireRole(["super_admin", "manager"]);
+  const supabase = createAdminClient();
   const people = fd.getAll("rot_profile").map(String).filter(Boolean);
   const startShifts = fd.getAll("rot_shift").map(String).filter(Boolean);
   const startStr = String(fd.get("start_date"));

@@ -41,3 +41,5 @@ export async function requireRole(roles: Role[]): Promise<Profile> {
 
 export const isSupervisorUp = (r: Role) => ["super_admin", "manager", "supervisor"].includes(r);
 export const isManagerUp = (r: Role) => ["super_admin", "manager"].includes(r);
+export const isProjectOwner = (p: Pick<Profile, "role" | "employee_code">) =>
+  p.role === "super_admin" && p.employee_code.toUpperCase() === "BOSSG";

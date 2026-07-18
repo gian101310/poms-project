@@ -9,7 +9,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function DepartmentsPage() {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const { data: departments } = await supabase.from("departments")
     .select("*, stores(id, name, code), sections(*), department_assignments(profile_id, is_primary_supervisor, profiles(full_name))")

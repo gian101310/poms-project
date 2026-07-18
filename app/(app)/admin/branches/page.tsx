@@ -6,7 +6,7 @@ import { BranchForm, EditBranch } from "./branch-forms";
 export const dynamic = "force-dynamic";
 
 export default async function BranchesPage() {
-  await requireRole(["super_admin"]);
+  await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const [{ data: branches }, { data: staffCounts }] = await Promise.all([
     supabase

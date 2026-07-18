@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
   const profile = await getProfile();
-  if (!profile || profile.role !== "super_admin" || profile.status !== "active") {
+  if (!profile || !["super_admin", "manager"].includes(profile.role) || profile.status !== "active") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -38,12 +38,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: authErr?.message ?? "Auth user creation failed" }, { status: 400 });
       }
 
+      const role = ["manager", "supervisor", "staff"].includes(String(body.role)) ? String(body.role) : "staff";
       const { error: profErr } = await admin.from("profiles").insert({
         id: created.user.id,
         store_id: body.store_id || profile.store_id,
         employee_code: code,
         full_name: body.full_name,
-        role: body.role ?? "staff",
+        role,
         position_id: body.position_id,
         phone: body.phone,
         email: body.email,
@@ -78,10 +79,11 @@ export async function POST(req: Request) {
     }
 
     if (body.action === "update") {
+      const role = ["manager", "supervisor", "staff"].includes(String(body.role)) ? String(body.role) : "staff";
       const { error } = await admin.from("profiles").update({
         full_name: body.full_name,
         store_id: body.store_id,
-        role: body.role,
+        role,
         position_id: body.position_id || null,
         phone: body.phone || null,
         email: body.email || null,

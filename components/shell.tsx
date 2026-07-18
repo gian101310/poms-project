@@ -110,7 +110,7 @@ export function Shell({
   if (role === "super_admin") {
     nav = [...managerExtra, ...adminExtra, ...accountNav];
   } else if (role === "manager") {
-    nav = [...managerExtra, ...accountNav];
+    nav = [...managerExtra, ...adminExtra, ...accountNav];
   } else if (role === "supervisor") {
     nav = [...staffNav, ...supervisorExtra, ...accountNav];
   } else {
