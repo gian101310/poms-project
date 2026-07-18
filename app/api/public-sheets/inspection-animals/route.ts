@@ -30,6 +30,7 @@ export async function GET(req: Request) {
   if (storeError || !store) return NextResponse.json({ error: "Springs branch not found." }, { status: 500 });
 
   const [
+    { data: liveBoardingAnimals, error: liveBoardingError },
     { data: reports, error: reportsError },
     { data: shopReports, error: shopReportsError },
     { data: groomingBookings, error: groomingBookingsError },
@@ -40,6 +41,11 @@ export async function GET(req: Request) {
     { data: previousShop, error: previousShopError },
     { data: previousGrooming, error: previousGroomingError },
   ] = await Promise.all([
+    admin.from("public_boarding_animals")
+      .select("id, category, row_data, updated_by_name, updated_at, created_by_name, created_at")
+      .eq("store_id", store.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: true }),
     admin.from("kennel_reports")
       .select("id, report_date, category, submitted_by_name, submitted_at, rows")
       .eq("store_id", store.id)
@@ -87,6 +93,7 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false }),
   ]);
 
+  if (liveBoardingError && !isMissingTable(liveBoardingError)) return NextResponse.json({ error: liveBoardingError.message }, { status: 500 });
   if (reportsError) return NextResponse.json({ error: reportsError.message }, { status: 500 });
   if (shopReportsError && !isMissingTable(shopReportsError)) return NextResponse.json({ error: shopReportsError.message }, { status: 500 });
   if (groomingBookingsError && !isMissingTable(groomingBookingsError)) return NextResponse.json({ error: groomingBookingsError.message }, { status: 500 });
@@ -116,7 +123,51 @@ export async function GET(req: Request) {
     });
   }
 
-  const boardingAnimals = (reports ?? []).flatMap((report: any) =>
+  const liveBoardingRows = liveBoardingError && isMissingTable(liveBoardingError) ? [] : (liveBoardingAnimals ?? []).map((animal: any, index: number) => {
+    const row = animal.row_data ?? {};
+    const key = `live-boarding:${animal.id}:${animal.id}`;
+    return {
+      key,
+      source_type: "boarding",
+      report_id: animal.id,
+      row_id: animal.id,
+      report_date: reportDate,
+      category: animal.category,
+      submitted_by_name: row.last_updated_by || animal.updated_by_name || animal.created_by_name || "Boarding sheet",
+      submitted_at: row.last_updated_at || animal.updated_at || animal.created_at,
+      label: row.label ?? `Boarding ${index + 1}`,
+      pet_type: row.pet_type,
+      animal_name: row.animal_name,
+      received_by: row.received_by,
+      breed: row.breed,
+      client_number: row.client_number,
+      cage_color: row.cage_color,
+      cage_number: row.cage_number,
+      check_in_date: row.check_in_date,
+      checkout_date: row.checkout_date,
+      payment_status: row.payment_status,
+      boarding_days: row.boarding_days,
+      paid_days: row.paid_days,
+      overdue_days: row.overdue_days,
+      extension_checkout_date: row.extension_checkout_date,
+      extension_days: row.extension_days,
+      extension_payment_status: row.extension_payment_status,
+      invoice_numbers: row.invoice_numbers,
+      extension_invoice_numbers: row.extension_invoice_numbers,
+      misc_note: row.misc_note,
+      brought_items: row.brought_items,
+      last_updated_by: row.last_updated_by || animal.updated_by_name || animal.created_by_name,
+      last_updated_at: row.last_updated_at || animal.updated_at || animal.created_at,
+      health_status: row.health_status,
+      report: row.report,
+      feeding_done: Boolean(row.feeding_done),
+      cleaning_done: Boolean(row.cleaning_done),
+      walking_done: Boolean(row.walking_done),
+      latest_inspection: latestByAnimal.get(key) ?? null,
+    };
+  });
+
+  const reportBoardingRows = (reports ?? []).flatMap((report: any) =>
     (report.rows ?? []).map((row: any, index: number) => {
       const rowId = row.row_id ?? `${report.id}-${index}`;
       const key = `${report.id}:${rowId}`;
@@ -132,6 +183,7 @@ export async function GET(req: Request) {
         label: row.label ?? `Boarding ${index + 1}`,
         pet_type: row.pet_type,
         animal_name: row.animal_name,
+        received_by: row.received_by,
         breed: row.breed,
         client_number: row.client_number,
         cage_color: row.cage_color,
@@ -160,6 +212,7 @@ export async function GET(req: Request) {
       };
     })
   );
+  const boardingAnimals = liveBoardingRows.length > 0 ? liveBoardingRows : reportBoardingRows;
   const shopAnimals = shopReportsError && isMissingTable(shopReportsError) ? [] : (shopReports ?? []).flatMap((report: any) =>
     (report.rows ?? []).map((row: any, index: number) => {
       const rowId = row.row_id ?? `${report.id}-${index}`;

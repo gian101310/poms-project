@@ -26,6 +26,7 @@ export async function POST(req: Request) {
       label: `Boarding ${index + 1}`,
       pet_type: String(row.pet_type ?? "").trim(),
       animal_name: String(row.animal_name ?? "").trim(),
+      received_by: String(row.received_by ?? "").trim(),
       breed: String(row.breed ?? "").trim(),
       size: String(row.size ?? "").trim(),
       cage_color: String(row.cage_color ?? "").trim(),

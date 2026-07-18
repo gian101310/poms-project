@@ -22,6 +22,7 @@ type BoardingRow = {
   id: string;
   petType: PetType;
   animalName: string;
+  receivedBy: string;
   clientNumber: string;
   breed: string;
   size: string;
@@ -92,6 +93,7 @@ type KennelAnimal = {
   label: string;
   pet_type: PetType;
   animal_name: string;
+  received_by?: string;
   client_name?: string;
   client_number: string;
   breed: string;
@@ -234,6 +236,7 @@ function blankBoarding(petType: PetType = "Dog"): BoardingRow {
     id: id(),
     petType,
     animalName: "",
+    receivedBy: "",
     clientNumber: "",
     breed: "",
     size: "Medium",
@@ -276,9 +279,95 @@ function diffDays(start: string, end: string) {
 
 function paidDaysFor(row: BoardingRow) {
   const days = diffDays(row.checkInDate, row.checkoutDate);
+  if (row.paymentStatus === "fully paid") return days;
   if (row.paidDaysMode === "full") return days;
   if (row.paidDaysMode === "half") return Math.max(0.5, days / 2);
   return Math.max(0, Number(row.customPaidDays) || 0);
+}
+
+function reportRowFromBoarding(row: BoardingRow, activeCategory: BoardingCategory) {
+  const boardingDays = diffDays(row.checkInDate, row.checkoutDate);
+  const paidDays = paidDaysFor(row);
+  return {
+    row_id: row.id,
+    pet_type: row.petType,
+    animal_name: row.animalName,
+    received_by: row.receivedBy,
+    breed: row.breed,
+    size: row.size,
+    cage_color: row.cageColor,
+    cage_number: row.cageNumber,
+    client_number: row.clientNumber,
+    check_in_date: row.checkInDate,
+    checkout_date: row.checkoutDate,
+    payment_status: row.paymentStatus,
+    boarding_days: boardingDays,
+    paid_days_mode: row.paymentStatus === "fully paid" ? "full" : row.paidDaysMode,
+    paid_days: paidDays,
+    extension_checkout_date: row.extensionCheckoutDate,
+    extension_days: diffDays(row.checkoutDate, row.extensionCheckoutDate),
+    extension_payment_status: row.extensionPaymentStatus,
+    invoice_numbers: row.invoiceNumbers,
+    extension_invoice_numbers: row.extensionInvoiceNumbers,
+    overdue_days: Math.max(0, boardingDays - paidDays),
+    misc_note: row.miscNote,
+    brought_items: {
+      cage: row.broughtCage,
+      food: row.broughtFood,
+      toys: row.broughtToys,
+      bed: row.broughtBed,
+      medicine: row.broughtMedicine,
+      other: row.broughtOther,
+      note: row.belongingsNote,
+    },
+    health_status: row.healthStatus,
+    report: row.report,
+    feeding_done: row.feedingDone,
+    cleaning_done: row.cleaningDone,
+    walking_done: activeCategory === "dogs" ? row.walkingDone : false,
+    last_updated_by: row.lastUpdatedBy,
+    last_updated_at: row.lastUpdatedAt,
+  };
+}
+
+function boardingFromSaved(row: any, petType: PetType): BoardingRow {
+  const brought = row.brought_items ?? {};
+  return {
+    ...blankBoarding((row.pet_type as PetType) || petType),
+    id: String(row.id ?? row.row_id ?? id()),
+    petType: (row.pet_type as PetType) || petType,
+    animalName: String(row.animal_name ?? ""),
+    receivedBy: String(row.received_by ?? ""),
+    clientNumber: String(row.client_number ?? ""),
+    breed: String(row.breed ?? ""),
+    size: String(row.size ?? "Medium"),
+    cageColor: String(row.cage_color ?? ""),
+    cageNumber: String(row.cage_number ?? ""),
+    checkInDate: String(row.check_in_date ?? ""),
+    checkoutDate: String(row.checkout_date ?? ""),
+    paymentStatus: String(row.payment_status ?? "unpaid"),
+    paidDaysMode: String(row.paid_days_mode ?? "full"),
+    customPaidDays: row.paid_days_mode === "custom" ? String(row.paid_days ?? "") : "",
+    extensionCheckoutDate: String(row.extension_checkout_date ?? ""),
+    extensionPaymentStatus: String(row.extension_payment_status ?? "unpaid"),
+    invoiceNumbers: String(row.invoice_numbers ?? ""),
+    extensionInvoiceNumbers: String(row.extension_invoice_numbers ?? ""),
+    miscNote: String(row.misc_note ?? ""),
+    broughtCage: Boolean(brought.cage),
+    broughtFood: Boolean(brought.food),
+    broughtToys: Boolean(brought.toys),
+    broughtBed: Boolean(brought.bed),
+    broughtMedicine: Boolean(brought.medicine),
+    broughtOther: Boolean(brought.other),
+    belongingsNote: String(brought.note ?? ""),
+    healthStatus: String(row.health_status ?? "Normal"),
+    report: String(row.report ?? ""),
+    feedingDone: Boolean(row.feeding_done),
+    cleaningDone: Boolean(row.cleaning_done),
+    walkingDone: Boolean(row.walking_done),
+    lastUpdatedBy: String(row.last_updated_by ?? ""),
+    lastUpdatedAt: String(row.last_updated_at ?? ""),
+  };
 }
 
 function blankGrooming(): GroomingRow {
@@ -397,15 +486,16 @@ function Toolbar({
 function BoardingSheet() {
   const [activeCategory, setActiveCategory] = useState<BoardingCategory>("dogs");
   const [rowsByCategory, setRowsByCategory] = useState<Record<BoardingCategory, BoardingRow[]>>({
-    dogs: [blankBoarding("Dog"), blankBoarding("Dog"), blankBoarding("Dog")],
-    cats: [blankBoarding("Cat"), blankBoarding("Cat")],
-    birds: [blankBoarding("Bird"), blankBoarding("Bird")],
-    reptiles: [blankBoarding("Reptile"), blankBoarding("Reptile")],
-    small_animals: [blankBoarding("Rabbit"), blankBoarding("Guinea Pig")],
+    dogs: [],
+    cats: [],
+    birds: [],
+    reptiles: [],
+    small_animals: [],
   });
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [submittedBy, setSubmittedBy] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [savingBoarding, setSavingBoarding] = useState(false);
   const [message, setMessage] = useState("");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -428,6 +518,31 @@ function BoardingSheet() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/public-sheets/boarding-animals?category=${activeCategory}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json.needsMigration) {
+          setMessage("Boarding history table needs migration 023 before live updates can save.");
+          return;
+        }
+        if (Array.isArray(json.animals) && json.animals.length > 0) {
+          setRowsByCategory((current) => ({
+            ...current,
+            [activeCategory]: json.animals.map((item: any) => boardingFromSaved(item, activeConfig.petTypes[0])),
+          }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMessage("Could not load saved boarding animals.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCategory, activeConfig.petTypes]);
+
   function update(rowId: string, patch: Partial<BoardingRow>) {
     setRowsByCategory((current) => ({
       ...current,
@@ -435,18 +550,68 @@ function BoardingSheet() {
     }));
   }
 
-  function addRow() {
-    setRowsByCategory((current) => ({
-      ...current,
-      [activeCategory]: [...current[activeCategory], blankBoarding(activeConfig.petTypes[0])],
-    }));
+  async function addRow() {
+    const chosenStaff = staff.find((item) => item.id === submittedBy);
+    if (!chosenStaff) {
+      setMessage("Choose staff name before adding boarding.");
+      return;
+    }
+    const nextRow = blankBoarding(activeConfig.petTypes[0]);
+    setSavingBoarding(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/public-sheets/boarding-animals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          category: activeCategory,
+          submitted_by_profile_id: chosenStaff.id,
+          row: reportRowFromBoarding(nextRow, activeCategory),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not add boarding.");
+      const saved = boardingFromSaved(json.animal, activeConfig.petTypes[0]);
+      setRowsByCategory((current) => ({
+        ...current,
+        [activeCategory]: [...current[activeCategory], saved],
+      }));
+      setExpandedRows((current) => ({ ...current, [saved.id]: true }));
+      setMessage(`Boarding added by ${chosenStaff.full_name}. Fill details, then Mark updated.`);
+    } catch (e: any) {
+      setMessage(e.message ?? "Could not add boarding.");
+    } finally {
+      setSavingBoarding(false);
+    }
   }
 
-  function removeRow(rowId: string) {
-    setRowsByCategory((current) => ({
-      ...current,
-      [activeCategory]: current[activeCategory].filter((item) => item.id !== rowId),
-    }));
+  async function removeRow(rowId: string) {
+    const chosenStaff = staff.find((item) => item.id === submittedBy);
+    if (!chosenStaff) {
+      setMessage("Choose staff name before deleting boarding.");
+      return;
+    }
+    if (!confirm("Delete this boarding animal? It will be hidden, but the history log will stay.")) return;
+    setSavingBoarding(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/public-sheets/boarding-animals", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: rowId, submitted_by_profile_id: chosenStaff.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not delete boarding.");
+      setRowsByCategory((current) => ({
+        ...current,
+        [activeCategory]: current[activeCategory].filter((item) => item.id !== rowId),
+      }));
+      setMessage(`Boarding deleted by ${chosenStaff.full_name}. History log saved.`);
+    } catch (e: any) {
+      setMessage(e.message ?? "Could not delete boarding.");
+    } finally {
+      setSavingBoarding(false);
+    }
   }
 
   function markAllCompleted(rowId: string) {
@@ -457,7 +622,13 @@ function BoardingSheet() {
     });
   }
 
-  function markAllBoardingCompleted() {
+  async function markAllBoardingCompleted() {
+    const chosenStaff = staff.find((item) => item.id === submittedBy);
+    if (!chosenStaff) {
+      setMessage("Choose staff name before marking all boarding done.");
+      return;
+    }
+    const now = new Date().toISOString();
     setRowsByCategory((current) => ({
       ...current,
       [activeCategory]: current[activeCategory].map((row) => ({
@@ -465,9 +636,30 @@ function BoardingSheet() {
         feedingDone: true,
         cleaningDone: true,
         walkingDone: activeCategory === "dogs" ? true : row.walkingDone,
+        lastUpdatedBy: `${chosenStaff.full_name} (${chosenStaff.employee_code})`,
+        lastUpdatedAt: now,
       })),
     }));
-    setMessage(`All ${activeConfig.label.toLowerCase()} tasks marked done. Submit report to save it.`);
+    setSavingBoarding(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/public-sheets/boarding-animals", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "all_done",
+          category: activeCategory,
+          submitted_by_profile_id: chosenStaff.id,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not save all done.");
+      setMessage(`All ${activeConfig.label.toLowerCase()} tasks saved by ${chosenStaff.full_name}.`);
+    } catch (e: any) {
+      setMessage(e.message ?? "Could not save all done.");
+    } finally {
+      setSavingBoarding(false);
+    }
   }
 
   function toggleExpanded(rowId: string) {
@@ -481,17 +673,45 @@ function BoardingSheet() {
     }));
   }
 
-  function markUpdated(rowId: string) {
+  async function markUpdated(rowId: string) {
     const chosenStaff = staff.find((item) => item.id === submittedBy);
     if (!chosenStaff) {
       setMessage("Choose staff name before marking an update.");
       return;
     }
+    const row = rows.find((item) => item.id === rowId);
+    if (!row) return;
+    setSavingBoarding(true);
+    setMessage("");
     update(rowId, {
       lastUpdatedBy: `${chosenStaff.full_name} (${chosenStaff.employee_code})`,
       lastUpdatedAt: new Date().toISOString(),
     });
-    setMessage("Pet file marked updated. Submit report to save it.");
+    try {
+      const rowToSave = {
+        ...row,
+        lastUpdatedBy: `${chosenStaff.full_name} (${chosenStaff.employee_code})`,
+        lastUpdatedAt: new Date().toISOString(),
+      };
+      const res = await fetch("/api/public-sheets/boarding-animals", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: rowId,
+          submitted_by_profile_id: chosenStaff.id,
+          row: reportRowFromBoarding(rowToSave, activeCategory),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not update pet details.");
+      const saved = boardingFromSaved(json.animal, activeConfig.petTypes[0]);
+      update(rowId, saved);
+      setMessage(`Pet details updated by ${chosenStaff.full_name}.`);
+    } catch (e: any) {
+      setMessage(e.message ?? "Could not update pet details.");
+    } finally {
+      setSavingBoarding(false);
+    }
   }
 
   async function submitReport() {
@@ -507,45 +727,10 @@ function BoardingSheet() {
           report_date: reportDate,
           submitted_by_profile_id: chosenStaff?.id ?? null,
           submitted_by_name: chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : "",
-          rows: rows.map((row) => ({
-            row_id: row.id,
-            pet_type: row.petType,
-            animal_name: row.animalName,
-            breed: row.breed,
-            size: row.size,
-            cage_color: row.cageColor,
-            cage_number: row.cageNumber,
-            client_number: row.clientNumber,
-            check_in_date: row.checkInDate,
-            checkout_date: row.checkoutDate,
-            payment_status: row.paymentStatus,
-            boarding_days: diffDays(row.checkInDate, row.checkoutDate),
-            paid_days_mode: row.paidDaysMode,
-            paid_days: paidDaysFor(row),
-            extension_checkout_date: row.extensionCheckoutDate,
-            extension_days: diffDays(row.checkoutDate, row.extensionCheckoutDate),
-            extension_payment_status: row.extensionPaymentStatus,
-            invoice_numbers: row.invoiceNumbers,
-            extension_invoice_numbers: row.extensionInvoiceNumbers,
-            overdue_days: Math.max(0, diffDays(row.checkInDate, row.checkoutDate) - paidDaysFor(row)),
-            misc_note: row.miscNote,
-            brought_items: {
-              cage: row.broughtCage,
-              food: row.broughtFood,
-              toys: row.broughtToys,
-              bed: row.broughtBed,
-              medicine: row.broughtMedicine,
-              other: row.broughtOther,
-              note: row.belongingsNote,
-            },
-            health_status: row.healthStatus,
-            report: row.report,
-            feeding_done: row.feedingDone,
-            cleaning_done: row.cleaningDone,
-            walking_done: activeCategory === "dogs" ? row.walkingDone : false,
-            last_updated_by: row.lastUpdatedBy || (chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : ""),
-            last_updated_at: row.lastUpdatedAt,
-          })),
+          rows: rows.map((row) => reportRowFromBoarding({
+            ...row,
+            lastUpdatedBy: row.lastUpdatedBy || (chosenStaff ? `${chosenStaff.full_name} (${chosenStaff.employee_code})` : ""),
+          }, activeCategory)),
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -566,10 +751,10 @@ function BoardingSheet() {
           <p className="text-sm text-slate-500">Submit kennel reports by boarding page; submissions appear in Command Center and Daily Reports.</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
-          <button className="btn-secondary" onClick={markAllBoardingCompleted}><CheckCircle2 size={15} /> All boarding done</button>
+          <button className="btn-secondary" onClick={markAllBoardingCompleted} disabled={savingBoarding}><CheckCircle2 size={15} /> All boarding done</button>
           <button className="btn-secondary" onClick={() => setAllRowsExpanded(true)}><ChevronDown size={15} /> Expand all</button>
           <button className="btn-secondary" onClick={() => setAllRowsExpanded(false)}><ChevronRight size={15} /> Collapse all</button>
-          <button className="btn-primary" onClick={addRow}><Plus size={15} /> Add boarding</button>
+          <button className="btn-primary" onClick={addRow} disabled={savingBoarding}><Plus size={15} /> {savingBoarding ? "Saving..." : "Add boarding"}</button>
           <button className="btn-primary" onClick={submitReport} disabled={submitting || !submittedBy}><Send size={15} /> {submitting ? "Submitting..." : "Submit report"}</button>
         </div>
       </div>
@@ -600,6 +785,11 @@ function BoardingSheet() {
       {message && <div className={`card mb-4 p-3 text-sm ${message.startsWith("Submitted") ? "text-green-700" : "text-red-600"}`}>{message}</div>}
 
       <div className="space-y-3">
+        {rows.length === 0 && (
+          <div className="card p-6 text-sm text-slate-500">
+            No active {activeConfig.label.toLowerCase()} yet. Choose staff name, then tap Add boarding.
+          </div>
+        )}
         {rows.map((row, index) => {
           const boardingDays = diffDays(row.checkInDate, row.checkoutDate);
           const paidDays = paidDaysFor(row);
@@ -649,11 +839,17 @@ function BoardingSheet() {
               <DoneToggle label="Done feeding" pressed={row.feedingDone} onClick={() => update(row.id, { feedingDone: !row.feedingDone })} />
               <DoneToggle label="Done cleaning" pressed={row.cleaningDone} onClick={() => update(row.id, { cleaningDone: !row.cleaningDone })} />
               {activeCategory === "dogs" && <DoneToggle label="Walking done" pressed={row.walkingDone} onClick={() => update(row.id, { walkingDone: !row.walkingDone })} />}
-              <button type="button" className="btn-secondary" onClick={() => markUpdated(row.id)}>Mark updated</button>
+              <button type="button" className="btn-secondary" onClick={() => markUpdated(row.id)} disabled={savingBoarding}>Mark updated</button>
             </div>
             {isExpanded && (
               <div className="mt-4 space-y-4">
                 <div className="grid gap-3 md:grid-cols-4">
+                  <Field label="Received by">
+                    <select className="input" value={row.receivedBy} onChange={(e) => update(row.id, { receivedBy: e.target.value })}>
+                      <option value="">Choose staff</option>
+                      {staff.map((person) => <option key={person.id} value={`${person.full_name} (${person.employee_code})`}>{person.full_name} ({person.employee_code})</option>)}
+                    </select>
+                  </Field>
                   <Field label="Client number"><input className="input" value={row.clientNumber} onChange={(e) => update(row.id, { clientNumber: e.target.value })} placeholder="Client mobile" /></Field>
                   <Field label="Breed / type">
                     <BreedSearch idPrefix="boarding-breeds" rowId={row.id} petType={row.petType} value={row.breed} onChange={(breed) => update(row.id, { breed })} />
@@ -664,13 +860,15 @@ function BoardingSheet() {
                   <Field label="Checkout date"><input className="input" type="date" value={row.checkoutDate} onChange={(e) => update(row.id, { checkoutDate: e.target.value })} /></Field>
                   <Field label="Number of days"><input className="input" value={boardingDays ? `${boardingDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
                   <Field label="Invoice no."><input className="input" value={row.invoiceNumbers} onChange={(e) => update(row.id, { invoiceNumbers: e.target.value })} placeholder="One or more invoices" /></Field>
-                  <Field label="Payment"><select className="input" value={row.paymentStatus} onChange={(e) => update(row.id, { paymentStatus: e.target.value })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-                  <Field label="Paid days">
-                    <select className="input" value={row.paidDaysMode} onChange={(e) => update(row.id, { paidDaysMode: e.target.value })}>
-                      {paidDaysModes.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </Field>
-                  {row.paidDaysMode === "custom" && <Field label="Custom paid days"><input className="input" type="number" min="0" step="0.5" value={row.customPaidDays} onChange={(e) => update(row.id, { customPaidDays: e.target.value })} /></Field>}
+                  <Field label="Payment"><select className="input" value={row.paymentStatus} onChange={(e) => update(row.id, { paymentStatus: e.target.value, paidDaysMode: e.target.value === "fully paid" ? "full" : row.paidDaysMode })}>{paymentStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+                  {row.paymentStatus !== "fully paid" && (
+                    <Field label="Paid days">
+                      <select className="input" value={row.paidDaysMode} onChange={(e) => update(row.id, { paidDaysMode: e.target.value })}>
+                        {paidDaysModes.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </Field>
+                  )}
+                  {row.paymentStatus !== "fully paid" && row.paidDaysMode === "custom" && <Field label="Custom paid days"><input className="input" type="number" min="0" step="0.5" value={row.customPaidDays} onChange={(e) => update(row.id, { customPaidDays: e.target.value })} /></Field>}
                   <Field label="Paid / overdue days"><input className="input" value={boardingDays ? `${paidDays} paid / ${overdueDays} overdue` : ""} readOnly placeholder="Auto" /></Field>
                   <Field label="Extension checkout"><input className="input" type="date" value={row.extensionCheckoutDate} onChange={(e) => update(row.id, { extensionCheckoutDate: e.target.value })} /></Field>
                   <Field label="Extension days"><input className="input" value={extensionDays ? `${extensionDays} day(s)` : ""} readOnly placeholder="Auto" /></Field>
@@ -1174,7 +1372,7 @@ function InspectionSheet() {
                     {animal.source_type === "boarding" ? (
                       <>
                         <p className="mt-1 text-xs text-slate-500">
-                          Client {animal.client_number || "not set"} · {animal.check_in_date || "no check-in"} to {animal.checkout_date || "no checkout"} · {animal.boarding_days ?? 0} day(s)
+                          Client {animal.client_number || "not set"} · Received by {animal.received_by || "not set"} · {animal.check_in_date || "no check-in"} to {animal.checkout_date || "no checkout"} · {animal.boarding_days ?? 0} day(s)
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           Payment {animal.payment_status || "unpaid"} · paid {animal.paid_days ?? 0} day(s) · overdue {animal.overdue_days ?? 0} day(s)

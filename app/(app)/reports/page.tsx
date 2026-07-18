@@ -159,7 +159,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                       <table className="w-full min-w-[1200px] text-sm">
                         <thead>
                           <tr>
-                            {["Boarding", "Pet", "Client", "Dates", "Days", "Payment", "Invoices", "Extension", "Breed / type", "Cage", "Health", "Care", "Misc / Updated", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
+                            {["Boarding", "Pet", "Client", "Received by", "Dates", "Days", "Payment", "Invoices", "Extension", "Breed / type", "Cage", "Health", "Care", "Misc / Updated", "Report"].map((h) => <th key={h} className="th">{h}</th>)}
                           </tr>
                         </thead>
                         <tbody>
@@ -168,6 +168,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                               <td className="td">{row.label ?? `Boarding ${index + 1}`}</td>
                               <td className="td">{row.animal_name || "—"} <span className="text-xs text-slate-400">({row.pet_type})</span></td>
                               <td className="td">{row.client_number || "—"}</td>
+                              <td className="td text-xs">{row.received_by || "—"}</td>
                               <td className="td">{row.check_in_date || "—"} to {row.checkout_date || "—"}</td>
                               <td className="td text-xs">{row.boarding_days ?? 0} total · {row.paid_days ?? 0} paid · {row.overdue_days ?? 0} overdue</td>
                               <td className="td capitalize">{row.payment_status || "unpaid"}</td>
