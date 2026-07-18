@@ -3,6 +3,7 @@ import { todayStr, fmtDateTime, fmtTime } from "@/lib/tz";
 import { PageHeader, Badge, EmptyState, StatCard } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
 import { CashierForm } from "./cashier-form";
+import { DeleteReportButton } from "./delete-report-button";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,15 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
   const sortedRows = [...rows].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   const openingRow = sortedRows.find((row) => row.phase === "opening");
   const closingRow = [...sortedRows].reverse().find((row) => row.phase === "closing");
+  const latestFloatRow = [...sortedRows].reverse().find((row) => row.closing_float != null || row.opening_float != null);
+  const expectedFloat = latestFloatRow?.closing_float ?? latestFloatRow?.opening_float ?? previousClosing?.closing_float ?? null;
+  const previousSameDayFloatById = new Map<string, number>();
+  let runningFloat: number | null = null;
+  for (const row of sortedRows) {
+    if (runningFloat != null) previousSameDayFloatById.set(row.id, runningFloat);
+    if (row.closing_float != null) runningFloat = Number(row.closing_float);
+    else if (row.opening_float != null) runningFloat = Number(row.opening_float);
+  }
   const openingFloat = openingRow?.opening_float ?? null;
   const closingFloat = closingRow?.closing_float ?? null;
   const floatVariance = openingFloat != null && closingFloat != null ? Number(closingFloat) - Number(openingFloat) : null;
@@ -96,6 +106,11 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     if (Math.abs(Number(row.missing_amount ?? 0)) >= 0.01) flags.push(`Cash/card ${money(row.missing_amount)}`);
     if (row.phase === "opening" && previousFloatVariance != null && Math.abs(previousFloatVariance) >= 0.01) {
       flags.push(`Prev close ${money(previousFloatVariance)}`);
+    }
+    const previousSameDayFloat = previousSameDayFloatById.get(row.id);
+    if (row.phase !== "opening" && previousSameDayFloat != null && row.opening_float != null) {
+      const shiftFloatVariance = Number(row.opening_float) - previousSameDayFloat;
+      if (Math.abs(shiftFloatVariance) >= 0.01) flags.push(`Prev shift ${money(shiftFloatVariance)}`);
     }
     if (row.phase === "closing" && openingFloat != null && row.closing_float != null) {
       const dayFloatVariance = Number(row.closing_float) - Number(openingFloat);
@@ -118,7 +133,14 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
         action={<BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} includeDate date={date} />} />
 
       {selectedBranch ? (
-        <CashierForm today={date} storeId={selectedBranch} staff={staff} groomers={groomersRes.data ?? []} />
+        <CashierForm
+          key={`${selectedBranch}-${date}-${expectedFloat ?? "new"}`}
+          today={date}
+          storeId={selectedBranch}
+          expectedFloat={expectedFloat}
+          staff={staff}
+          groomers={groomersRes.data ?? []}
+        />
       ) : (
         <EmptyState message="No active branch found." />
       )}
@@ -250,6 +272,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
                       <p className="whitespace-pre-wrap text-sm">{r.notes || "-"}</p>
                     </div>
                   </div>
+                  <DeleteReportButton id={r.id} />
                 </div>
               </details>
             );

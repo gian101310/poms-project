@@ -1,5 +1,6 @@
 "use server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isInspectionPassword } from "@/lib/public-sheets-auth";
 import { revalidatePath } from "next/cache";
 
 const phases = new Set(["opening", "shift_change", "closing"]);
@@ -80,11 +81,25 @@ export async function submitCashReport(fd: FormData) {
       .limit(1)
       .maybeSingle()
     : { data: null };
+  const { data: previousSameDayReport } = phase !== "opening" && openingFloat != null
+    ? await supabase
+      .from("cash_reports")
+      .select("closing_float")
+      .eq("store_id", storeId)
+      .eq("report_date", reportDate)
+      .not("closing_float", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    : { data: null };
   const previousFloatVariance = previousClosing?.closing_float != null && openingFloat != null
     ? Number((openingFloat - previousClosing.closing_float).toFixed(2))
     : null;
   const dayFloatVariance = todayOpening?.opening_float != null && closingFloat != null
     ? Number((closingFloat - todayOpening.opening_float).toFixed(2))
+    : null;
+  const shiftFloatVariance = previousSameDayReport?.closing_float != null && openingFloat != null
+    ? Number((openingFloat - previousSameDayReport.closing_float).toFixed(2))
     : null;
   const expenseVendor = String(fd.get("expense_vendor") ?? "").trim();
   const expenseVendorCustom = String(fd.get("expense_vendor_custom") ?? "").trim();
@@ -100,11 +115,12 @@ export async function submitCashReport(fd: FormData) {
     floatVariance != null ? `Float variance: AED ${floatVariance.toFixed(2)}` : "",
     previousFloatVariance != null ? `Previous closing to opening variance: AED ${previousFloatVariance.toFixed(2)}` : "",
     dayFloatVariance != null ? `Opening to closing float variance: AED ${dayFloatVariance.toFixed(2)}` : "",
+    shiftFloatVariance != null ? `Previous shift to current opening float variance: AED ${shiftFloatVariance.toFixed(2)}` : "",
     `Auto cash variance: AED ${cashVariance.toFixed(2)}`,
     `Auto card variance: AED ${cardVariance.toFixed(2)}`,
     `Total variance: AED ${totalVariance.toFixed(2)}`,
   ].filter(Boolean).join("\n");
-  const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
+  const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance, shiftFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
 
   const row = {
     store_id: storeId,
@@ -133,6 +149,21 @@ export async function submitCashReport(fd: FormData) {
   };
 
   const { error } = await supabase.from("cash_reports").insert(row);
+  if (error) return { error: error.message };
+
+  revalidatePath("/cashier");
+  revalidatePath("/overview");
+  return { ok: true };
+}
+
+export async function deleteCashReport(fd: FormData) {
+  const supabase = createAdminClient();
+  const id = String(fd.get("id") ?? "");
+  const password = String(fd.get("admin_password") ?? "");
+  if (!id) return { error: "Missing report id." };
+  if (!isInspectionPassword(password)) return { error: "Wrong admin password." };
+
+  const { error } = await supabase.from("cash_reports").delete().eq("id", id);
   if (error) return { error: error.message };
 
   revalidatePath("/cashier");

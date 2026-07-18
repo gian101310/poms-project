@@ -18,19 +18,22 @@ function money(value: number) {
 export function CashierForm({
   today,
   storeId,
+  expectedFloat,
   staff,
   groomers,
 }: {
   today: string;
   storeId: string;
+  expectedFloat?: number | null;
   staff: any[];
   groomers: any[];
 }) {
+  const defaultFloat = expectedFloat == null ? "" : String(Number(expectedFloat).toFixed(2));
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [openingFloat, setOpeningFloat] = useState("");
-  const [closingFloat, setClosingFloat] = useState("");
+  const [openingFloat, setOpeningFloat] = useState(defaultFloat);
+  const [closingFloat, setClosingFloat] = useState(defaultFloat);
   const [hikeCash, setHikeCash] = useState("");
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
@@ -74,9 +77,10 @@ export function CashierForm({
         alert(result.error);
         return;
       }
+      const nextFloat = openingFloat || closingFloat || defaultFloat;
       formRef.current?.reset();
-      setOpeningFloat("");
-      setClosingFloat("");
+      setOpeningFloat(nextFloat);
+      setClosingFloat(nextFloat);
       setHikeCash("");
       setHikeCard("");
       setActualCash("");
@@ -91,6 +95,21 @@ export function CashierForm({
   return (
     <form ref={formRef} action={submit} className="card mb-6 space-y-4 p-4">
       <input type="hidden" name="store_id" value={storeId} />
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Cash float</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="label">Opening float</label>
+            <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            <p className="mt-1 text-xs text-slate-500">This must match the last closing/shift float.</p>
+          </div>
+          <div>
+            <label className="label">Closing float</label>
+            <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            <p className="mt-1 text-xs text-slate-500">This should stay the same as opening float.</p>
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
           <label className="label">Date</label>
@@ -136,7 +155,7 @@ export function CashierForm({
 
       <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Actual count</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="label">Actual card machine sales</label>
             <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
@@ -144,14 +163,6 @@ export function CashierForm({
           <div>
             <label className="label">Actual cash / money drop</label>
             <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-          </div>
-          <div>
-            <label className="label">Opening float</label>
-            <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-          </div>
-          <div className="md:col-start-3">
-            <label className="label">Closing float</label>
-            <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
           </div>
         </div>
       </div>
