@@ -1,6 +1,7 @@
 import { isProjectOwner, requireRole } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Table } from "@/components/ui";
+import { BranchFilter } from "@/components/branch-filter";
 import { SettingRow } from "./setting-forms";
 import { ProjectControls } from "./admin-control-forms";
 import { getProjectControlSettings } from "@/lib/project-controls";
@@ -29,12 +30,16 @@ const DESCRIPTIONS: Record<string, string> = {
 };
 const PROJECT_ONLY_KEYS = new Set(["project_enabled", "task_scheduling_enabled"]);
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: { branch?: string } }) {
   const profile = await requireRole(["super_admin", "manager"]);
   const canManageProject = isProjectOwner(profile);
   const supabase = createClient();
-  const [{ data: settings }, projectControls] = await Promise.all([
-    supabase.from("app_settings").select("*, stores(name)").order("key"),
+  const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
+  let settingsQuery = supabase.from("app_settings").select("*, stores(name)").order("key");
+  if (selectedBranch) settingsQuery = settingsQuery.or(`store_id.eq.${selectedBranch},store_id.is.null`);
+  const [{ data: settings }, { data: branches }, projectControls] = await Promise.all([
+    settingsQuery,
+    supabase.from("stores").select("id, name, code").eq("is_active", true).order("name"),
     getProjectControlSettings(),
   ]);
   const visibleSettings = canManageProject
@@ -44,7 +49,8 @@ export default async function SettingsPage() {
   return (
     <div>
       <PageHeader title="Company Settings"
-        subtitle="Timings, security, and thresholds — everything configurable lives here. Values are JSON." />
+        subtitle="Timings, security, and thresholds — everything configurable lives here. Values are JSON."
+        action={<BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} />} />
       {canManageProject && (
         <ProjectControls projectEnabled={projectControls.projectEnabled} schedulingEnabled={projectControls.taskSchedulingEnabled} />
       )}

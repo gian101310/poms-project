@@ -357,15 +357,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
         </div>
       </div>
 
-      {selectedBranch ? (
-        <StandardFloatForm storeId={selectedBranch} currentValue={selectedStandardFloat} />
-      ) : (
-        <div className="card mb-6 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cashier standard float</p>
-          <p className="mt-1 text-sm text-slate-500">Choose one branch to set the fixed cashier float target.</p>
-        </div>
-      )}
-
+      <details open className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Staff, Attendance, Leave & Shifts</summary>
+        <div className="px-4 pb-4">
       <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Staff Live Board</h2>
@@ -454,9 +448,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       </div>
+        </div>
+      </details>
 
+      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Grooming</summary>
+        <div className="px-4 pb-4">
       {!groomingRes.error && (
-        <div className="card mb-6 p-4">
+        <div className="card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Grooming summary</p>
@@ -472,7 +471,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       )}
+        </div>
+      </details>
 
+      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Boarding, Shop Animals & Inspections</summary>
+        <div className="px-4 pb-4">
       <div className="card mb-6 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -652,7 +656,20 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         )}
       </div>
+        </div>
+      </details>
 
+      <details open className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Cashier</summary>
+        <div className="px-4 pb-4">
+      {selectedBranch ? (
+        <StandardFloatForm storeId={selectedBranch} currentValue={selectedStandardFloat} />
+      ) : (
+        <div className="card mb-6 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cashier standard float</p>
+          <p className="mt-1 text-sm text-slate-500">Choose one branch to set the fixed cashier float target.</p>
+        </div>
+      )}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Cash Drop" value={money(cashTotals.cash_sales)} hint={`${cashReports.length} report(s)`} />
         <StatCard label="Card Sales" value={money(cashTotals.card_sales)} />
@@ -703,7 +720,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         )}
       </div>
+        </div>
+      </details>
 
+      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Follow-ups & Break Monitoring</summary>
+        <div className="px-4 pb-4">
       {pendingFollowups.length > 0 && (
         <div className="card mb-6 border-l-4 border-l-amber-500 p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Queued follow-ups (added to future checklists)</p>
@@ -737,7 +759,15 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       )}
+      {pendingFollowups.length === 0 && breakSessions.length === 0 && (
+        <p className="text-sm text-slate-400">No pending follow-ups or break records for this date.</p>
+      )}
+        </div>
+      </details>
 
+      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Checklist Tasks by Department</summary>
+        <div className="px-4 pb-4">
       {instances.length === 0 && <EmptyState message={`No checklists for ${date}.`} />}
 
       {Array.from(byDept.entries()).filter(([, d]) => d.instances.length > 0).map(([deptId, dept]) => (
@@ -800,6 +830,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </section>
       ))}
+        </div>
+      </details>
     </div>
   );
 }
