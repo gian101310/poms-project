@@ -210,6 +210,14 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
         </div>
       </div>
 
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cashier logs</p>
+          <h2 className="text-lg font-semibold">All submitted reports for {date}</h2>
+          <p className="text-sm text-slate-500">{rows.length} report(s) for the selected branch and day.</p>
+        </div>
+      </div>
+
       {rows.length === 0 ? (
         <EmptyState message={`No cash reports for ${date}.`} />
       ) : (
@@ -256,38 +264,42 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
                       <p className="text-xs text-slate-400">Balanced</p>
                       <p className={r.received_correct === false ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{r.received_correct ? "Yes" : "No"}</p>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Hike cash</p>
-                      <p className="font-semibold">{money(r.expected_cash)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">{phaseCashLabel(r.phase)}</p>
-                      <p className="font-semibold">{money(r.counted_cash ?? r.cash_sales)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Hike card</p>
-                      <p className="font-semibold">{money(r.expected_card)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">{phaseCardLabel(r.phase)}</p>
-                      <p className="font-semibold">{money(r.actual_card ?? r.card_sales)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Card tips</p>
-                      <p className="font-semibold">{money(r.card_tip_amount ?? r.tips)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Expenses</p>
-                      <p className="font-semibold">{money(r.shop_purchase_amount ?? r.expenses)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Cash/card variance</p>
-                      <p className={Math.abs(Number(r.missing_amount ?? 0)) >= 0.01 ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{money(r.missing_amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400">Card variance</p>
-                      <p className={Math.abs(Number(r.card_variance ?? 0)) >= 0.01 ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{money(r.card_variance)}</p>
-                    </div>
+                    {r.phase !== "opening" && (
+                      <>
+                        <div>
+                          <p className="text-xs text-slate-400">Hike cash</p>
+                          <p className="font-semibold">{money(r.expected_cash)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">{phaseCashLabel(r.phase)}</p>
+                          <p className="font-semibold">{money(r.counted_cash ?? r.cash_sales)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Hike card</p>
+                          <p className="font-semibold">{money(r.expected_card)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">{phaseCardLabel(r.phase)}</p>
+                          <p className="font-semibold">{money(r.actual_card ?? r.card_sales)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Card tips</p>
+                          <p className="font-semibold">{money(r.card_tip_amount ?? r.tips)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Expenses</p>
+                          <p className="font-semibold">{money(r.shop_purchase_amount ?? r.expenses)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Cash/card variance</p>
+                          <p className={Math.abs(Number(r.missing_amount ?? 0)) >= 0.01 ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{money(r.missing_amount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Card variance</p>
+                          <p className={Math.abs(Number(r.card_variance ?? 0)) >= 0.01 ? "font-semibold text-red-600" : "font-semibold text-green-600"}>{money(r.card_variance)}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
                     <div>

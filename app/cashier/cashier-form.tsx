@@ -56,6 +56,7 @@ export function CashierForm({
   const [actualCard, setActualCard] = useState("");
   const [tipLines, setTipLines] = useState<TipLine[]>([emptyTipLine(1)]);
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
+  const isOpening = phase === "opening";
   const tipTotal = useMemo(
     () => tipLines.reduce((total, line) => total + amount(line.amount), 0),
     [tipLines],
@@ -68,10 +69,10 @@ export function CashierForm({
   const calc = useMemo(() => {
     const tip = tipTotal;
     const exp = expenseTotal;
-    const expectedCashAfterPayouts = amount(hikeCash) - tip - exp;
-    const expectedCardWithTips = amount(hikeCard) + tip;
-    const cashVariance = amount(actualCash) - expectedCashAfterPayouts;
-    const cardVariance = amount(actualCard) - expectedCardWithTips;
+    const expectedCashAfterPayouts = isOpening ? 0 : amount(hikeCash) - tip - exp;
+    const expectedCardWithTips = isOpening ? 0 : amount(hikeCard) + tip;
+    const cashVariance = isOpening ? 0 : amount(actualCash) - expectedCashAfterPayouts;
+    const cardVariance = isOpening ? 0 : amount(actualCard) - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
     const activeFloat = phase === "closing" ? amount(closingFloat) : amount(openingFloat);
     const standardVariance = standardFloat == null ? 0 : activeFloat - standardFloat;
@@ -79,7 +80,7 @@ export function CashierForm({
       ? (phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0)
       : standardVariance;
     return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance };
-  }, [actualCard, actualCash, closingFloat, expenseTotal, hikeCard, hikeCash, openingFloat, phase, standardFloat, tipTotal]);
+  }, [actualCard, actualCash, closingFloat, expenseTotal, hikeCard, hikeCash, isOpening, openingFloat, phase, standardFloat, tipTotal]);
 
   function updateTipLine(id: number, patch: Partial<TipLine>) {
     setTipLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
@@ -158,23 +159,23 @@ export function CashierForm({
   }
 
   function submit(fd: FormData) {
-    const expenses = expenseTotal.toFixed(2);
-    const tips = tipTotal.toFixed(2);
+    const expenses = isOpening ? "" : expenseTotal.toFixed(2);
+    const tips = isOpening ? "" : tipTotal.toFixed(2);
     fd.set("store_id", storeId);
     fd.set("opening_float", phase === "closing" ? "" : openingFloat);
     fd.set("closing_float", phase === "opening" ? "" : closingFloat);
-    fd.set("cash_sales", actualCash);
-    fd.set("card_sales", actualCard);
-    fd.set("expected_cash", hikeCash);
-    fd.set("counted_cash", actualCash);
-    fd.set("expected_card", hikeCard);
-    fd.set("actual_card", actualCard);
+    fd.set("cash_sales", isOpening ? "" : actualCash);
+    fd.set("card_sales", isOpening ? "" : actualCard);
+    fd.set("expected_cash", isOpening ? "" : hikeCash);
+    fd.set("counted_cash", isOpening ? "" : actualCash);
+    fd.set("expected_card", isOpening ? "" : hikeCard);
+    fd.set("actual_card", isOpening ? "" : actualCard);
     fd.set("tips", tips);
     fd.set("card_tip_amount", tips);
-    fd.set("tip_lines", tipBreakdown());
+    fd.set("tip_lines", isOpening ? "" : tipBreakdown());
     fd.set("expenses", expenses);
     fd.set("shop_purchase_amount", expenses);
-    fd.set("expense_lines", expenseBreakdown());
+    fd.set("expense_lines", isOpening ? "" : expenseBreakdown());
     fd.set("missing_amount", String(calc.cashVariance.toFixed(2)));
     fd.set("card_variance", String(calc.cardVariance.toFixed(2)));
     fd.set("received_correct", Math.abs(calc.totalVariance) < 0.01 ? "yes" : "no");
@@ -251,32 +252,34 @@ export function CashierForm({
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phaseText(phase)} Hike sales</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div>
-            <label className="label">{phaseText(phase)} Hike cash sales</label>
-            <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-          </div>
-          <div>
-            <label className="label">{phaseText(phase)} Hike card sales</label>
-            <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+      {!isOpening && (
+        <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phaseText(phase)} Hike sales</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className="label">{phaseText(phase)} Hike cash sales</label>
+              <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            </div>
+            <div>
+              <label className="label">{phaseText(phase)} Hike card sales</label>
+              <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing count" : phase === "shift_change" ? "Shift count" : "Actual count"}</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div>
-            <label className="label">{phaseText(phase)} actual card machine sales</label>
-            <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-          </div>
-          <div>
-            <label className="label">{phaseText(phase)} actual cash / money drop</label>
-            <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-          </div>
-          {phase !== "opening" && (
+      {!isOpening && (
+        <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing count" : "Shift count"}</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <label className="label">{phaseText(phase)} actual card machine sales</label>
+              <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            </div>
+            <div>
+              <label className="label">{phaseText(phase)} actual cash / money drop</label>
+              <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            </div>
             <div>
               <label className="label">{phase === "shift_change" ? "Shift float" : "Closing float"}</label>
               <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
@@ -286,135 +289,139 @@ export function CashierForm({
                   : `Must match standard float ${money(standardFloat)}.`}
               </p>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Card tips</p>
-            <p className="text-xs text-slate-500">Add up to 4 groomer tip lines.</p>
           </div>
-          <p className="text-sm font-semibold">Total: {money(tipTotal)}</p>
         </div>
-        <div className="space-y-3">
-          {tipLines.map((line, index) => (
-            <div key={line.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-100 p-2 dark:border-slate-800 md:grid-cols-[72px_1fr_140px_auto]">
-              <div className="flex items-center text-xs font-semibold text-slate-500">Tip {index + 1}</div>
-              <div>
-                <label className="label">Groomer</label>
-                <select className="input" value={line.groomer} onChange={(e) => updateTipLine(line.id, { groomer: e.target.value })}>
-                  <option value="">Choose groomer</option>
-                  {groomers.map((g) => <option key={g.id} value={g.full_name}>{g.full_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Amount</label>
-                <input value={line.amount} onChange={(e) => updateTipLine(line.id, { amount: e.target.value })} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-              </div>
-              <div className="flex items-end">
-                <button type="button" className="btn-secondary w-full md:w-auto" onClick={() => removeTipLine(line.id)} disabled={tipLines.length === 1} title="Remove tip line">
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button type="button" className="btn-secondary mt-3" onClick={addTipLine} disabled={tipLines.length >= 4}>
-          <Plus size={16} /> Add tip
-        </button>
-      </div>
+      )}
 
-      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expenses</p>
-            <p className="text-xs text-slate-500">Add up to 6 shop expense lines.</p>
+      {!isOpening && (
+        <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Card tips</p>
+              <p className="text-xs text-slate-500">Add up to 4 groomer tip lines.</p>
+            </div>
+            <p className="text-sm font-semibold">Total: {money(tipTotal)}</p>
           </div>
-          <p className="text-sm font-semibold">Total: {money(expenseTotal)}</p>
+          <div className="space-y-3">
+            {tipLines.map((line, index) => (
+              <div key={line.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-100 p-2 dark:border-slate-800 md:grid-cols-[72px_1fr_140px_auto]">
+                <div className="flex items-center text-xs font-semibold text-slate-500">Tip {index + 1}</div>
+                <div>
+                  <label className="label">Groomer</label>
+                  <select className="input" value={line.groomer} onChange={(e) => updateTipLine(line.id, { groomer: e.target.value })}>
+                    <option value="">Choose groomer</option>
+                    {groomers.map((g) => <option key={g.id} value={g.full_name}>{g.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Amount</label>
+                  <input value={line.amount} onChange={(e) => updateTipLine(line.id, { amount: e.target.value })} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+                <div className="flex items-end">
+                  <button type="button" className="btn-secondary w-full md:w-auto" onClick={() => removeTipLine(line.id)} disabled={tipLines.length === 1} title="Remove tip line">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn-secondary mt-3" onClick={addTipLine} disabled={tipLines.length >= 4}>
+            <Plus size={16} /> Add tip
+          </button>
         </div>
-        <div className="space-y-3">
-          {expenseLines.map((line, index) => (
-            <div key={line.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-100 p-2 dark:border-slate-800 md:grid-cols-[88px_150px_1fr_1fr_130px_auto]">
-              <div className="flex items-center text-xs font-semibold text-slate-500">Expense {index + 1}</div>
-              <div>
-                <label className="label">Shop</label>
-                <select className="input" value={line.vendor} onChange={(e) => updateExpenseLine(line.id, { vendor: e.target.value })}>
-                  {expenseVendors.map((vendor) => <option key={vendor} value={vendor}>{vendor}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Custom shop</label>
-                <input
-                  className="input"
-                  value={line.customVendor}
-                  onChange={(e) => updateExpenseLine(line.id, { customVendor: e.target.value })}
-                  placeholder="Only if Custom"
-                  disabled={line.vendor !== "Custom"}
-                />
-              </div>
-              <div>
-                <label className="label">Reason</label>
-                <input className="input" value={line.reason} onChange={(e) => updateExpenseLine(line.id, { reason: e.target.value })} placeholder="What was bought / why" />
-              </div>
-              <div>
-                <label className="label">Amount</label>
-                <input value={line.amount} onChange={(e) => updateExpenseLine(line.id, { amount: e.target.value })} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-              </div>
-              <div className="flex items-end">
-                <button type="button" className="btn-secondary w-full md:w-auto" onClick={() => removeExpenseLine(line.id)} disabled={expenseLines.length === 1} title="Remove expense line">
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button type="button" className="btn-secondary mt-3" onClick={addExpenseLine} disabled={expenseLines.length >= 6}>
-          <Plus size={16} /> Add expense
-        </button>
-      </div>
+      )}
 
-      <div className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-4">
-        <div className="flex items-center gap-2 md:col-span-4">
-          <Calculator size={16} className="text-slate-400" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Auto calculation</p>
+      {!isOpening && (
+        <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expenses</p>
+              <p className="text-xs text-slate-500">Add up to 6 shop expense lines.</p>
+            </div>
+            <p className="text-sm font-semibold">Total: {money(expenseTotal)}</p>
+          </div>
+          <div className="space-y-3">
+            {expenseLines.map((line, index) => (
+              <div key={line.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-100 p-2 dark:border-slate-800 md:grid-cols-[88px_150px_1fr_1fr_130px_auto]">
+                <div className="flex items-center text-xs font-semibold text-slate-500">Expense {index + 1}</div>
+                <div>
+                  <label className="label">Shop</label>
+                  <select className="input" value={line.vendor} onChange={(e) => updateExpenseLine(line.id, { vendor: e.target.value })}>
+                    {expenseVendors.map((vendor) => <option key={vendor} value={vendor}>{vendor}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Custom shop</label>
+                  <input
+                    className="input"
+                    value={line.customVendor}
+                    onChange={(e) => updateExpenseLine(line.id, { customVendor: e.target.value })}
+                    placeholder="Only if Custom"
+                    disabled={line.vendor !== "Custom"}
+                  />
+                </div>
+                <div>
+                  <label className="label">Reason</label>
+                  <input className="input" value={line.reason} onChange={(e) => updateExpenseLine(line.id, { reason: e.target.value })} placeholder="What was bought / why" />
+                </div>
+                <div>
+                  <label className="label">Amount</label>
+                  <input value={line.amount} onChange={(e) => updateExpenseLine(line.id, { amount: e.target.value })} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+                <div className="flex items-end">
+                  <button type="button" className="btn-secondary w-full md:w-auto" onClick={() => removeExpenseLine(line.id)} disabled={expenseLines.length === 1} title="Remove expense line">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn-secondary mt-3" onClick={addExpenseLine} disabled={expenseLines.length >= 6}>
+            <Plus size={16} /> Add expense
+          </button>
         </div>
-        <div>
-          <p className="text-xs text-slate-400">Expected cash after payouts</p>
-          <p className="font-semibold">{money(calc.expectedCashAfterPayouts)}</p>
-          <p className="text-[11px] text-slate-400">Hike cash minus card tips and expenses.</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-400">Expected card with tips</p>
-          <p className="font-semibold">{money(calc.expectedCardWithTips)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-400">{phaseText(phase)} cash variance</p>
-          <p className={Math.abs(calc.cashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cashVariance)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-400">{phaseText(phase)} card variance</p>
-          <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
-        </div>
-        {phase !== "opening" && (
+      )}
+
+      {!isOpening && (
+        <div className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-4">
+          <div className="flex items-center gap-2 md:col-span-4">
+            <Calculator size={16} className="text-slate-400" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Auto calculation</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Expected cash after payouts</p>
+            <p className="font-semibold">{money(calc.expectedCashAfterPayouts)}</p>
+            <p className="text-[11px] text-slate-400">Hike cash minus card tips and expenses.</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Expected card with tips</p>
+            <p className="font-semibold">{money(calc.expectedCardWithTips)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">{phaseText(phase)} cash variance</p>
+            <p className={Math.abs(calc.cashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cashVariance)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">{phaseText(phase)} card variance</p>
+            <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
+          </div>
           <div>
             <p className="text-xs text-slate-400">{phase === "shift_change" ? "Shift float variance" : "Closing float variance"}</p>
             <p className={Math.abs(calc.floatVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{money(calc.floatVariance)}</p>
             <p className="text-[11px] text-slate-400">{standardFloat == null ? "Against opening float when entered." : "Against standard float."}</p>
           </div>
-        )}
-        {standardFloat != null && (
-          <div>
-            <p className="text-xs text-slate-400">Standard float variance</p>
-            <p className={Math.abs(calc.standardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{money(calc.standardVariance)}</p>
+          {standardFloat != null && (
+            <div>
+              <p className="text-xs text-slate-400">Standard float variance</p>
+              <p className={Math.abs(calc.standardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{money(calc.standardVariance)}</p>
+            </div>
+          )}
+          <div className="md:col-span-4">
+            <p className="text-xs text-slate-400">Total variance</p>
+            <p className={Math.abs(calc.totalVariance) < 0.01 ? "text-lg font-bold text-green-600" : "text-lg font-bold text-red-600"}>{money(calc.totalVariance)}</p>
           </div>
-        )}
-        <div className="md:col-span-4">
-          <p className="text-xs text-slate-400">Total variance</p>
-          <p className={Math.abs(calc.totalVariance) < 0.01 ? "text-lg font-bold text-green-600" : "text-lg font-bold text-red-600"}>{money(calc.totalVariance)}</p>
         </div>
-      </div>
+      )}
 
       <div>
         <label className="label">Notes / reason if not balanced</label>

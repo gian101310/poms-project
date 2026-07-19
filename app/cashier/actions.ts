@@ -125,9 +125,9 @@ export async function submitCashReport(fd: FormData) {
     dayFloatVariance != null ? `Opening to closing float variance: AED ${dayFloatVariance.toFixed(2)}` : "",
     shiftFloatVariance != null ? `Previous shift to current opening float variance: AED ${shiftFloatVariance.toFixed(2)}` : "",
     standardFloatVariance != null ? `Standard float variance: AED ${standardFloatVariance.toFixed(2)}` : "",
-    `Auto cash variance: AED ${cashVariance.toFixed(2)}`,
-    `Auto card variance: AED ${cardVariance.toFixed(2)}`,
-    `Total variance: AED ${totalVariance.toFixed(2)}`,
+    phase !== "opening" ? `Auto cash variance: AED ${cashVariance.toFixed(2)}` : "",
+    phase !== "opening" ? `Auto card variance: AED ${cardVariance.toFixed(2)}` : "",
+    phase !== "opening" ? `Total variance: AED ${totalVariance.toFixed(2)}` : "",
   ].filter(Boolean).join("\n");
   const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance, shiftFloatVariance, standardFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
 
