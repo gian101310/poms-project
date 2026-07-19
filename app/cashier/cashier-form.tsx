@@ -5,7 +5,12 @@ import { submitCashReport } from "./actions";
 import { Calculator, Plus, Save, Trash2 } from "lucide-react";
 
 const expenseVendors = ["Carrefour", "Borders", "Daiso", "Custom"];
+type TipLine = { id: number; groomer: string; amount: string };
 type ExpenseLine = { id: number; amount: string; vendor: string; customVendor: string; reason: string };
+
+function emptyTipLine(id: number): TipLine {
+  return { id, groomer: "", amount: "" };
+}
 
 function emptyExpenseLine(id: number): ExpenseLine {
   return { id, amount: "", vendor: "Carrefour", customVendor: "", reason: "" };
@@ -49,15 +54,19 @@ export function CashierForm({
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
   const [actualCard, setActualCard] = useState("");
-  const [cardTips, setCardTips] = useState("");
+  const [tipLines, setTipLines] = useState<TipLine[]>([emptyTipLine(1)]);
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
+  const tipTotal = useMemo(
+    () => tipLines.reduce((total, line) => total + amount(line.amount), 0),
+    [tipLines],
+  );
   const expenseTotal = useMemo(
     () => expenseLines.reduce((total, line) => total + amount(line.amount), 0),
     [expenseLines],
   );
 
   const calc = useMemo(() => {
-    const tip = amount(cardTips);
+    const tip = tipTotal;
     const exp = expenseTotal;
     const expectedCashAfterPayouts = amount(hikeCash) - tip - exp;
     const expectedCardWithTips = amount(hikeCard) + tip;
@@ -70,7 +79,26 @@ export function CashierForm({
       ? (phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0)
       : standardVariance;
     return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance };
-  }, [actualCard, actualCash, cardTips, closingFloat, expenseTotal, hikeCard, hikeCash, openingFloat, phase, standardFloat]);
+  }, [actualCard, actualCash, closingFloat, expenseTotal, hikeCard, hikeCash, openingFloat, phase, standardFloat, tipTotal]);
+
+  function updateTipLine(id: number, patch: Partial<TipLine>) {
+    setTipLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
+  }
+
+  function addTipLine() {
+    setTipLines((lines) => {
+      if (lines.length >= 4) return lines;
+      const nextId = Math.max(0, ...lines.map((line) => line.id)) + 1;
+      return [...lines, emptyTipLine(nextId)];
+    });
+  }
+
+  function removeTipLine(id: number) {
+    setTipLines((lines) => {
+      const next = lines.filter((line) => line.id !== id);
+      return next.length ? next : [emptyTipLine(1)];
+    });
+  }
 
   function updateExpenseLine(id: number, patch: Partial<ExpenseLine>) {
     setExpenseLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
@@ -113,8 +141,25 @@ export function CashierForm({
       .join("\n");
   }
 
+  function tipBreakdown() {
+    return tipLines
+      .map((line) => ({
+        amount: amount(line.amount),
+        groomer: line.groomer.trim(),
+        hasDetail: amount(line.amount) > 0 || Boolean(line.groomer.trim()),
+      }))
+      .filter((line) => line.hasDetail)
+      .map((line, index) => {
+        const parts = [`Tip ${index + 1}: AED ${line.amount.toFixed(2)}`];
+        if (line.groomer) parts.push(line.groomer);
+        return parts.join(" - ");
+      })
+      .join("\n");
+  }
+
   function submit(fd: FormData) {
     const expenses = expenseTotal.toFixed(2);
+    const tips = tipTotal.toFixed(2);
     fd.set("store_id", storeId);
     fd.set("opening_float", phase === "closing" ? "" : openingFloat);
     fd.set("closing_float", phase === "opening" ? "" : closingFloat);
@@ -124,8 +169,9 @@ export function CashierForm({
     fd.set("counted_cash", actualCash);
     fd.set("expected_card", hikeCard);
     fd.set("actual_card", actualCard);
-    fd.set("tips", cardTips);
-    fd.set("card_tip_amount", cardTips);
+    fd.set("tips", tips);
+    fd.set("card_tip_amount", tips);
+    fd.set("tip_lines", tipBreakdown());
     fd.set("expenses", expenses);
     fd.set("shop_purchase_amount", expenses);
     fd.set("expense_lines", expenseBreakdown());
@@ -146,7 +192,7 @@ export function CashierForm({
       setHikeCard("");
       setActualCash("");
       setActualCard("");
-      setCardTips("");
+      setTipLines([emptyTipLine(1)]);
       setExpenseLines([emptyExpenseLine(1)]);
       router.refresh();
     });
@@ -244,18 +290,40 @@ export function CashierForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <label className="label">Card tips amount</label>
-          <input value={cardTips} onChange={(e) => setCardTips(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Card tips</p>
+            <p className="text-xs text-slate-500">Add up to 4 groomer tip lines.</p>
+          </div>
+          <p className="text-sm font-semibold">Total: {money(tipTotal)}</p>
         </div>
-        <div>
-          <label className="label">Tip for groomer</label>
-          <select name="card_tip_groomer" className="input" defaultValue="">
-            <option value="">Choose groomer</option>
-            {groomers.map((g) => <option key={g.id} value={g.full_name}>{g.full_name}</option>)}
-          </select>
+        <div className="space-y-3">
+          {tipLines.map((line, index) => (
+            <div key={line.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-100 p-2 dark:border-slate-800 md:grid-cols-[72px_1fr_140px_auto]">
+              <div className="flex items-center text-xs font-semibold text-slate-500">Tip {index + 1}</div>
+              <div>
+                <label className="label">Groomer</label>
+                <select className="input" value={line.groomer} onChange={(e) => updateTipLine(line.id, { groomer: e.target.value })}>
+                  <option value="">Choose groomer</option>
+                  {groomers.map((g) => <option key={g.id} value={g.full_name}>{g.full_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Amount</label>
+                <input value={line.amount} onChange={(e) => updateTipLine(line.id, { amount: e.target.value })} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+              </div>
+              <div className="flex items-end">
+                <button type="button" className="btn-secondary w-full md:w-auto" onClick={() => removeTipLine(line.id)} disabled={tipLines.length === 1} title="Remove tip line">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
+        <button type="button" className="btn-secondary mt-3" onClick={addTipLine} disabled={tipLines.length >= 4}>
+          <Plus size={16} /> Add tip
+        </button>
       </div>
 
       <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
@@ -366,6 +434,7 @@ export function CashierForm({
       <input type="hidden" name="actual_card" />
       <input type="hidden" name="card_variance" />
       <input type="hidden" name="card_tip_amount" />
+      <input type="hidden" name="tip_lines" />
       <input type="hidden" name="shop_purchase_amount" />
       <input type="hidden" name="expense_lines" />
       <input type="hidden" name="received_correct" />

@@ -113,9 +113,9 @@ export async function submitCashReport(fd: FormData) {
     ? Number((openingFloat - previousSameDayReport.closing_float).toFixed(2))
     : null;
   const expenseLines = String(fd.get("expense_lines") ?? "").trim();
-  const cardTipGroomer = String(fd.get("card_tip_groomer") ?? "").trim();
+  const tipLines = String(fd.get("tip_lines") ?? "").trim();
   const cashierNotes = [
-    cardTips ? `Card tips: AED ${cardTips.toFixed(2)}${cardTipGroomer ? ` for ${cardTipGroomer}` : ""}` : "",
+    cardTips ? `Card tips total: AED ${cardTips.toFixed(2)}${tipLines ? `\n${tipLines}` : ""}` : "",
     expenses ? `Expenses total: AED ${expenses.toFixed(2)}${expenseLines ? `\n${expenseLines}` : ""}` : "",
     String(fd.get("notes") ?? "").trim(),
   ].filter(Boolean).join("\n");
