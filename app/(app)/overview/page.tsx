@@ -38,7 +38,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
       .is("consumed_at", null).order("target_date");
   let cashQuery = supabase
     .from("cash_reports")
-    .select("id, phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, expected_cash, counted_cash, expected_card, actual_card, missing_amount, card_variance, card_tip_amount, shop_purchase_amount, received_correct, variance_reason, created_at, store_id, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), stores(name)")
+    .select("id, phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, expected_cash, counted_cash, expected_card, actual_card, missing_amount, card_variance, card_tip_amount, shop_purchase_amount, expense_notes, received_correct, variance_reason, created_at, store_id, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), stores(name)")
     .eq("report_date", date)
     .order("created_at", { ascending: false });
   let standardFloatQuery = supabase.from("app_settings").select("store_id, value").eq("key", "standard_cash_float");
@@ -702,6 +702,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
                     <span>Card: Hike {money(Number(report.expected_card ?? 0))} / actual {money(Number(report.actual_card ?? report.card_sales ?? 0))}</span>
                     <span>Tips {money(Number(report.card_tip_amount ?? report.tips ?? 0))} · Expenses {money(Number(report.shop_purchase_amount ?? report.expenses ?? 0))}</span>
                   </div>
+                  {report.expense_notes && (
+                    <p className="mt-2 whitespace-pre-wrap rounded-md bg-white/70 p-2 text-xs text-slate-500 dark:bg-slate-950/40">
+                      {report.expense_notes}
+                    </p>
+                  )}
                 </div>
               );
             })}

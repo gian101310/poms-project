@@ -2,9 +2,14 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitCashReport } from "./actions";
-import { Calculator, Save } from "lucide-react";
+import { Calculator, Plus, Save, Trash2 } from "lucide-react";
 
 const expenseVendors = ["Carrefour", "Borders", "Daiso", "Custom"];
+type ExpenseLine = { id: number; amount: string; vendor: string; customVendor: string; reason: string };
+
+function emptyExpenseLine(id: number): ExpenseLine {
+  return { id, amount: "", vendor: "Carrefour", customVendor: "", reason: "" };
+}
 
 function amount(value: string) {
   const n = Number(value);
@@ -45,12 +50,15 @@ export function CashierForm({
   const [actualCash, setActualCash] = useState("");
   const [actualCard, setActualCard] = useState("");
   const [cardTips, setCardTips] = useState("");
-  const [expenses, setExpenses] = useState("");
-  const [expenseVendor, setExpenseVendor] = useState("Carrefour");
+  const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
+  const expenseTotal = useMemo(
+    () => expenseLines.reduce((total, line) => total + amount(line.amount), 0),
+    [expenseLines],
+  );
 
   const calc = useMemo(() => {
     const tip = amount(cardTips);
-    const exp = amount(expenses);
+    const exp = expenseTotal;
     const expectedCashAfterPayouts = amount(hikeCash) - tip - exp;
     const expectedCardWithTips = amount(hikeCard) + tip;
     const cashVariance = amount(actualCash) - expectedCashAfterPayouts;
@@ -62,9 +70,51 @@ export function CashierForm({
       ? (phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0)
       : standardVariance;
     return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance };
-  }, [actualCard, actualCash, cardTips, closingFloat, expenses, hikeCard, hikeCash, openingFloat, phase, standardFloat]);
+  }, [actualCard, actualCash, cardTips, closingFloat, expenseTotal, hikeCard, hikeCash, openingFloat, phase, standardFloat]);
+
+  function updateExpenseLine(id: number, patch: Partial<ExpenseLine>) {
+    setExpenseLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
+  }
+
+  function addExpenseLine() {
+    setExpenseLines((lines) => {
+      if (lines.length >= 6) return lines;
+      const nextId = Math.max(0, ...lines.map((line) => line.id)) + 1;
+      return [...lines, emptyExpenseLine(nextId)];
+    });
+  }
+
+  function removeExpenseLine(id: number) {
+    setExpenseLines((lines) => {
+      const next = lines.filter((line) => line.id !== id);
+      return next.length ? next : [emptyExpenseLine(1)];
+    });
+  }
+
+  function expenseBreakdown() {
+    return expenseLines
+      .map((line) => {
+        const lineAmount = amount(line.amount);
+        const vendor = line.vendor === "Custom" ? line.customVendor.trim() : line.vendor;
+        return {
+          amount: lineAmount,
+          vendor,
+          reason: line.reason.trim(),
+          hasDetail: lineAmount > 0 || Boolean(vendor) || Boolean(line.reason.trim()),
+        };
+      })
+      .filter((line) => line.hasDetail)
+      .map((line, index) => {
+        const parts = [`Expense ${index + 1}: AED ${line.amount.toFixed(2)}`];
+        if (line.vendor) parts.push(line.vendor);
+        if (line.reason) parts.push(line.reason);
+        return parts.join(" - ");
+      })
+      .join("\n");
+  }
 
   function submit(fd: FormData) {
+    const expenses = expenseTotal.toFixed(2);
     fd.set("store_id", storeId);
     fd.set("opening_float", phase === "closing" ? "" : openingFloat);
     fd.set("closing_float", phase === "opening" ? "" : closingFloat);
@@ -78,6 +128,7 @@ export function CashierForm({
     fd.set("card_tip_amount", cardTips);
     fd.set("expenses", expenses);
     fd.set("shop_purchase_amount", expenses);
+    fd.set("expense_lines", expenseBreakdown());
     fd.set("missing_amount", String(calc.cashVariance.toFixed(2)));
     fd.set("card_variance", String(calc.cardVariance.toFixed(2)));
     fd.set("received_correct", Math.abs(calc.totalVariance) < 0.01 ? "yes" : "no");
@@ -96,8 +147,7 @@ export function CashierForm({
       setActualCash("");
       setActualCard("");
       setCardTips("");
-      setExpenses("");
-      setExpenseVendor("Carrefour");
+      setExpenseLines([emptyExpenseLine(1)]);
       router.refresh();
     });
   }
@@ -194,7 +244,7 @@ export function CashierForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
           <label className="label">Card tips amount</label>
           <input value={cardTips} onChange={(e) => setCardTips(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
@@ -206,24 +256,55 @@ export function CashierForm({
             {groomers.map((g) => <option key={g.id} value={g.full_name}>{g.full_name}</option>)}
           </select>
         </div>
-        <div>
-          <label className="label">Expenses amount</label>
-          <input value={expenses} onChange={(e) => setExpenses(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+      </div>
+
+      <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expenses</p>
+            <p className="text-xs text-slate-500">Add up to 6 shop expense lines.</p>
+          </div>
+          <p className="text-sm font-semibold">Total: {money(expenseTotal)}</p>
         </div>
-        <div>
-          <label className="label">Expense shop</label>
-          <select name="expense_vendor" className="input" value={expenseVendor} onChange={(e) => setExpenseVendor(e.target.value)}>
-            {expenseVendors.map((vendor) => <option key={vendor} value={vendor}>{vendor}</option>)}
-          </select>
+        <div className="space-y-3">
+          {expenseLines.map((line, index) => (
+            <div key={line.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-100 p-2 dark:border-slate-800 md:grid-cols-[88px_150px_1fr_1fr_130px_auto]">
+              <div className="flex items-center text-xs font-semibold text-slate-500">Expense {index + 1}</div>
+              <div>
+                <label className="label">Shop</label>
+                <select className="input" value={line.vendor} onChange={(e) => updateExpenseLine(line.id, { vendor: e.target.value })}>
+                  {expenseVendors.map((vendor) => <option key={vendor} value={vendor}>{vendor}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Custom shop</label>
+                <input
+                  className="input"
+                  value={line.customVendor}
+                  onChange={(e) => updateExpenseLine(line.id, { customVendor: e.target.value })}
+                  placeholder="Only if Custom"
+                  disabled={line.vendor !== "Custom"}
+                />
+              </div>
+              <div>
+                <label className="label">Reason</label>
+                <input className="input" value={line.reason} onChange={(e) => updateExpenseLine(line.id, { reason: e.target.value })} placeholder="What was bought / why" />
+              </div>
+              <div>
+                <label className="label">Amount</label>
+                <input value={line.amount} onChange={(e) => updateExpenseLine(line.id, { amount: e.target.value })} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+              </div>
+              <div className="flex items-end">
+                <button type="button" className="btn-secondary w-full md:w-auto" onClick={() => removeExpenseLine(line.id)} disabled={expenseLines.length === 1} title="Remove expense line">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-        <div>
-          <label className="label">Custom shop name</label>
-          <input name="expense_vendor_custom" className="input" placeholder="Only if Custom" disabled={expenseVendor !== "Custom"} />
-        </div>
-        <div>
-          <label className="label">Expense reason</label>
-          <input name="expense_reason" className="input" placeholder="What was bought / why" />
-        </div>
+        <button type="button" className="btn-secondary mt-3" onClick={addExpenseLine} disabled={expenseLines.length >= 6}>
+          <Plus size={16} /> Add expense
+        </button>
       </div>
 
       <div className="grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-4">
@@ -286,6 +367,7 @@ export function CashierForm({
       <input type="hidden" name="card_variance" />
       <input type="hidden" name="card_tip_amount" />
       <input type="hidden" name="shop_purchase_amount" />
+      <input type="hidden" name="expense_lines" />
       <input type="hidden" name="received_correct" />
 
       <button className="btn-primary" disabled={pending}>

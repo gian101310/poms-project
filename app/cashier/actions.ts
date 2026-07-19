@@ -112,14 +112,11 @@ export async function submitCashReport(fd: FormData) {
   const shiftFloatVariance = previousSameDayReport?.closing_float != null && openingFloat != null
     ? Number((openingFloat - previousSameDayReport.closing_float).toFixed(2))
     : null;
-  const expenseVendor = String(fd.get("expense_vendor") ?? "").trim();
-  const expenseVendorCustom = String(fd.get("expense_vendor_custom") ?? "").trim();
-  const expenseName = expenseVendor === "Custom" ? expenseVendorCustom : expenseVendor;
-  const expenseReason = String(fd.get("expense_reason") ?? "").trim();
+  const expenseLines = String(fd.get("expense_lines") ?? "").trim();
   const cardTipGroomer = String(fd.get("card_tip_groomer") ?? "").trim();
   const cashierNotes = [
     cardTips ? `Card tips: AED ${cardTips.toFixed(2)}${cardTipGroomer ? ` for ${cardTipGroomer}` : ""}` : "",
-    expenses ? `Expense: AED ${expenses.toFixed(2)}${expenseName ? ` at ${expenseName}` : ""}${expenseReason ? ` - ${expenseReason}` : ""}` : "",
+    expenses ? `Expenses total: AED ${expenses.toFixed(2)}${expenseLines ? `\n${expenseLines}` : ""}` : "",
     String(fd.get("notes") ?? "").trim(),
   ].filter(Boolean).join("\n");
   const varianceSummary = [
@@ -155,7 +152,7 @@ export async function submitCashReport(fd: FormData) {
     card_tip_amount: money(fd, "card_tip_amount"),
     shop_purchase_amount: money(fd, "shop_purchase_amount"),
     variance_reason: varianceSummary,
-    expense_notes: expenses ? `${expenseName || "Expense"}${expenseReason ? ` - ${expenseReason}` : ""}` : null,
+    expense_notes: expenses ? (expenseLines || `Expenses total: AED ${expenses.toFixed(2)}`) : null,
     notes: cashierNotes || null,
     submitted_by: submittedBy,
   };
