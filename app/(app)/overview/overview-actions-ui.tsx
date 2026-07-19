@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { verifyTask } from "../verify/actions";
@@ -136,5 +137,23 @@ export function StandardFloatForm({
         <Save size={15} /> {pending ? "Saving..." : "Save"}
       </button>
     </form>
+  );
+}
+
+export function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <section className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-4 py-3 text-left text-lg font-semibold"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{title}</span>
+        <span className="text-sm text-slate-400">{open ? "Hide" : "Open"}</span>
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </section>
   );
 }

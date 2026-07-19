@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { todayStr, fmtTime } from "@/lib/tz";
 import { PageHeader, StatCard, Badge, EmptyState, Bar } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
-import { DeliveryToggle, InlineVerify, FollowupButton, StandardFloatForm } from "./overview-actions-ui";
+import { CollapsibleSection, DeliveryToggle, InlineVerify, FollowupButton, StandardFloatForm } from "./overview-actions-ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -357,9 +357,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
         </div>
       </div>
 
-      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Staff, Attendance, Leave & Shifts</summary>
-        <div className="px-4 pb-4">
+      <CollapsibleSection title="Staff, Attendance, Leave & Shifts">
       <section className="mb-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Staff Live Board</h2>
@@ -448,12 +446,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       </div>
-        </div>
-      </details>
+      </CollapsibleSection>
 
-      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Grooming</summary>
-        <div className="px-4 pb-4">
+      <CollapsibleSection title="Grooming">
       {!groomingRes.error && (
         <div className="card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -471,12 +466,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </div>
       )}
-        </div>
-      </details>
+      </CollapsibleSection>
 
-      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Boarding, Shop Animals & Inspections</summary>
-        <div className="px-4 pb-4">
+      <CollapsibleSection title="Boarding, Shop Animals & Inspections">
       <div className="card mb-6 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -656,12 +648,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         )}
       </div>
-        </div>
-      </details>
+      </CollapsibleSection>
 
-      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Cashier</summary>
-        <div className="px-4 pb-4">
+      <CollapsibleSection title="Cashier">
       {selectedBranch ? (
         <StandardFloatForm storeId={selectedBranch} currentValue={selectedStandardFloat} />
       ) : (
@@ -720,12 +709,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         )}
       </div>
-        </div>
-      </details>
+      </CollapsibleSection>
 
-      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Follow-ups & Break Monitoring</summary>
-        <div className="px-4 pb-4">
+      <CollapsibleSection title="Follow-ups & Break Monitoring">
       {pendingFollowups.length > 0 && (
         <div className="card mb-6 border-l-4 border-l-amber-500 p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Queued follow-ups (added to future checklists)</p>
@@ -762,12 +748,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
       {pendingFollowups.length === 0 && breakSessions.length === 0 && (
         <p className="text-sm text-slate-400">No pending follow-ups or break records for this date.</p>
       )}
-        </div>
-      </details>
+      </CollapsibleSection>
 
-      <details className="mb-6 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer px-4 py-3 text-lg font-semibold">Checklist Tasks by Department</summary>
-        <div className="px-4 pb-4">
+      <CollapsibleSection title="Checklist Tasks by Department">
       {instances.length === 0 && <EmptyState message={`No checklists for ${date}.`} />}
 
       {Array.from(byDept.entries()).filter(([, d]) => d.instances.length > 0).map(([deptId, dept]) => (
@@ -830,8 +813,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
           </div>
         </section>
       ))}
-        </div>
-      </details>
+      </CollapsibleSection>
     </div>
   );
 }

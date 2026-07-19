@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList, LockKeyhole, Plus, Printer, RotateCcw, Scissors, Send, ShieldCheck, Store, Trash2,
@@ -449,10 +449,12 @@ function Toolbar({
   active,
   setActive,
   reset,
+  pending,
 }: {
   active: PublicSheetTab;
   setActive: (value: PublicSheetTab) => void;
   reset: () => void;
+  pending?: boolean;
 }) {
   return (
     <div className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 print:hidden">
@@ -476,6 +478,7 @@ function Toolbar({
               <ShieldCheck size={15} /> Inspection
             </button>
           </div>
+          {pending && <span className="text-xs font-medium text-slate-400">Loading...</span>}
           <CommandCenterExit />
           <button className="btn-secondary" onClick={reset}><RotateCcw size={15} /> Reset</button>
           <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>
@@ -1443,6 +1446,7 @@ export function PublicSheets() {
       : "boarding";
   });
   const [version, setVersion] = useState(0);
+  const renderedActive = useDeferredValue(active);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1452,11 +1456,16 @@ export function PublicSheets() {
 
   return (
     <main key={version} className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <Toolbar active={active} setActive={setActive} reset={() => setVersion((current) => current + 1)} />
-      {active === "boarding" && <BoardingSheet />}
-      {active === "shop" && <ShopAnimalsSheet />}
-      {active === "grooming" && <GroomingSheet />}
-      {active === "inspection" && <InspectionSheet />}
+      <Toolbar
+        active={active}
+        setActive={setActive}
+        reset={() => setVersion((current) => current + 1)}
+        pending={renderedActive !== active}
+      />
+      {renderedActive === "boarding" && <BoardingSheet />}
+      {renderedActive === "shop" && <ShopAnimalsSheet />}
+      {renderedActive === "grooming" && <GroomingSheet />}
+      {renderedActive === "inspection" && <InspectionSheet />}
     </main>
   );
 }
