@@ -2,11 +2,24 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitCashReport } from "./actions";
-import { Calculator, Plus, Save, Trash2 } from "lucide-react";
+import { Calculator, Plus, Printer, Save, Trash2 } from "lucide-react";
 
 const expenseVendors = ["Carrefour", "Borders", "Daiso", "Custom"];
 type TipLine = { id: number; groomer: string; amount: string };
 type ExpenseLine = { id: number; amount: string; vendor: string; customVendor: string; reason: string };
+type ReceiptData = {
+  branchName: string;
+  reportDate: string;
+  printedAt: string;
+  staffName: string;
+  hikeCash: string;
+  actualCash: string;
+  hikeCard: string;
+  actualCard: string;
+  closingFloat: string;
+  cardTips: string;
+  expenses: string;
+};
 
 function emptyTipLine(id: number): TipLine {
   return { id, groomer: "", amount: "" };
@@ -25,6 +38,16 @@ function money(value: number) {
   return `AED ${value.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  }[char] ?? char));
+}
+
 function phaseText(phase: "opening" | "shift_change" | "closing") {
   if (phase === "shift_change") return "Shift change";
   if (phase === "closing") return "Closing";
@@ -34,12 +57,14 @@ function phaseText(phase: "opening" | "shift_change" | "closing") {
 export function CashierForm({
   today,
   storeId,
+  branchName,
   standardFloat,
   staff,
   groomers,
 }: {
   today: string;
   storeId: string;
+  branchName: string;
   standardFloat?: number | null;
   staff: any[];
   groomers: any[];
@@ -48,14 +73,17 @@ export function CashierForm({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [phase, setPhase] = useState<"opening" | "shift_change" | "closing">("opening");
+  const [reportDate, setReportDate] = useState(today);
   const [openingFloat, setOpeningFloat] = useState("");
   const [closingFloat, setClosingFloat] = useState("");
   const [hikeCash, setHikeCash] = useState("");
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
   const [actualCard, setActualCard] = useState("");
+  const [submittedBy, setSubmittedBy] = useState("");
   const [tipLines, setTipLines] = useState<TipLine[]>([emptyTipLine(1)]);
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
+  const [lastReceipt, setLastReceipt] = useState<ReceiptData | null>(null);
   const isOpening = phase === "opening";
   const tipTotal = useMemo(
     () => tipLines.reduce((total, line) => total + amount(line.amount), 0),
@@ -158,9 +186,78 @@ export function CashierForm({
       .join("\n");
   }
 
+  function staffLabel(id: string) {
+    const person = staff.find((s) => s.id === id);
+    return person ? `${person.full_name} (${person.employee_code})` : "-";
+  }
+
+  function printReceipt(receipt: ReceiptData) {
+    const rows = [
+      ["Date", escapeHtml(receipt.reportDate)],
+      ["Time", escapeHtml(receipt.printedAt)],
+      ["Staff", escapeHtml(receipt.staffName)],
+      ["Hike Cash", money(amount(receipt.hikeCash))],
+      ["Actual Cash", money(amount(receipt.actualCash))],
+      ["Hike Card", money(amount(receipt.hikeCard))],
+      ["Actual Card", money(amount(receipt.actualCard))],
+      ["Card Tips", money(amount(receipt.cardTips))],
+      ["Expenses", money(amount(receipt.expenses))],
+      ["Closing Float", money(amount(receipt.closingFloat))],
+    ];
+    const html = `<!doctype html>
+<html>
+  <head>
+    <title>Cashier Receipt</title>
+    <style>
+      @page { size: 80mm auto; margin: 3mm; }
+      * { box-sizing: border-box; }
+      body { width: 72mm; margin: 0; color: #000; font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      h1 { margin: 0 0 3mm; text-align: center; font-size: 15px; }
+      .sub { margin: 0 0 3mm; text-align: center; font-size: 11px; }
+      .line { border-top: 1px dashed #000; margin: 2mm 0; }
+      .row { display: flex; justify-content: space-between; gap: 3mm; margin: 1.2mm 0; }
+      .label { white-space: nowrap; }
+      .value { text-align: right; font-weight: 700; overflow-wrap: anywhere; }
+      .note { margin-top: 3mm; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <h1>Cashier Closing</h1>
+    <p class="sub">${escapeHtml(receipt.branchName)}</p>
+    <div class="line"></div>
+    ${rows.map(([label, value]) => `<div class="row"><span class="label">${label}</span><span class="value">${value}</span></div>`).join("")}
+    <div class="line"></div>
+    <p class="note">Attach this receipt to the money drop.</p>
+    <script>window.print(); window.onafterprint = () => window.close();</script>
+  </body>
+</html>`;
+    const win = window.open("", "_blank", "width=320,height=640");
+    if (!win) {
+      alert("Please allow popups to print the receipt.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+  }
+
   function submit(fd: FormData) {
     const expenses = isOpening ? "" : expenseTotal.toFixed(2);
     const tips = isOpening ? "" : tipTotal.toFixed(2);
+    const receipt: ReceiptData | null = phase === "closing"
+      ? {
+        branchName,
+        reportDate,
+        printedAt: new Date().toLocaleString("en-AE", { dateStyle: "short", timeStyle: "short" }),
+        staffName: staffLabel(submittedBy),
+        hikeCash,
+        actualCash,
+        hikeCard,
+        actualCard,
+        closingFloat,
+        cardTips: tips,
+        expenses,
+      }
+      : null;
     fd.set("store_id", storeId);
     fd.set("opening_float", phase === "closing" ? "" : openingFloat);
     fd.set("closing_float", phase === "opening" ? "" : closingFloat);
@@ -185,14 +282,17 @@ export function CashierForm({
         alert(result.error);
         return;
       }
+      setLastReceipt(receipt);
       formRef.current?.reset();
       setPhase("opening");
+      setReportDate(today);
       setOpeningFloat("");
       setClosingFloat("");
       setHikeCash("");
       setHikeCard("");
       setActualCash("");
       setActualCard("");
+      setSubmittedBy("");
       setTipLines([emptyTipLine(1)]);
       setExpenseLines([emptyExpenseLine(1)]);
       router.refresh();
@@ -226,7 +326,7 @@ export function CashierForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
           <label className="label">Date</label>
-          <input name="report_date" type="date" defaultValue={today} className="input" required />
+          <input name="report_date" type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="input" required />
         </div>
         <div>
           <label className="label">Phase</label>
@@ -238,7 +338,7 @@ export function CashierForm({
         </div>
         <div>
           <label className="label">Opened / closed by</label>
-          <select name="submitted_by" className="input" defaultValue="" required>
+          <select name="submitted_by" className="input" value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)} required>
             <option value="">Choose staff</option>
             {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
           </select>
@@ -254,15 +354,33 @@ export function CashierForm({
 
       {!isOpening && (
         <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phaseText(phase)} Hike sales</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phaseText(phase)} sales count</p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className="label">{phaseText(phase)} Hike cash sales</label>
-              <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            <div className="rounded-md border border-slate-100 p-3 dark:border-slate-800">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Cash</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="label">Hike cash sales</label>
+                  <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+                <div>
+                  <label className="label">Actual cash / money drop</label>
+                  <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="label">{phaseText(phase)} Hike card sales</label>
-              <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            <div className="rounded-md border border-slate-100 p-3 dark:border-slate-800">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Card</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="label">Hike card sales</label>
+                  <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+                <div>
+                  <label className="label">Actual card machine sales</label>
+                  <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -270,16 +388,8 @@ export function CashierForm({
 
       {!isOpening && (
         <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing count" : "Shift count"}</p>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label className="label">{phaseText(phase)} actual card machine sales</label>
-              <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-            </div>
-            <div>
-              <label className="label">{phaseText(phase)} actual cash / money drop</label>
-              <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-            </div>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing float" : "Shift float"}</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
               <label className="label">{phase === "shift_change" ? "Shift float" : "Closing float"}</label>
               <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
@@ -396,6 +506,7 @@ export function CashierForm({
           <div>
             <p className="text-xs text-slate-400">Expected card with tips</p>
             <p className="font-semibold">{money(calc.expectedCardWithTips)}</p>
+            <p className="text-[11px] text-slate-400">Hike card plus card tips.</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">{phaseText(phase)} cash variance</p>
@@ -417,8 +528,13 @@ export function CashierForm({
             </div>
           )}
           <div className="md:col-span-4">
-            <p className="text-xs text-slate-400">Total variance</p>
+            <p className="text-xs text-slate-400">Variance after tip/expense adjustment</p>
             <p className={Math.abs(calc.totalVariance) < 0.01 ? "text-lg font-bold text-green-600" : "text-lg font-bold text-red-600"}>{money(calc.totalVariance)}</p>
+            {(tipTotal > 0 || expenseTotal > 0) && (
+              <p className="mt-1 text-xs text-slate-500">
+                Explanation: card can be higher by card tips, while cash can be lower because card tips and shop expenses were paid out from cash.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -449,6 +565,15 @@ export function CashierForm({
       <button className="btn-primary" disabled={pending}>
         <Save size={16} /> {pending ? "Saving..." : "Submit cash report"}
       </button>
+      {lastReceipt && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/30">
+          <p className="text-sm font-semibold text-green-700 dark:text-green-300">Closing report saved.</p>
+          <p className="mb-3 text-xs text-green-700/80 dark:text-green-300/80">Print this receipt and attach it to the money drop.</p>
+          <button type="button" className="btn-primary" onClick={() => printReceipt(lastReceipt)}>
+            <Printer size={16} /> Print closing receipt
+          </button>
+        </div>
+      )}
     </form>
   );
 }

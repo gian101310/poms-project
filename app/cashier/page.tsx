@@ -21,6 +21,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
     .order("name");
   const defaultBranch = branches?.find((branch: any) => branch.code === "SPRINGS") ?? branches?.[0];
   const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : defaultBranch?.id;
+  const selectedBranchName = branches?.find((branch: any) => branch.id === selectedBranch)?.name ?? "Branch";
 
   const reportsQuery = supabase
     .from("cash_reports")
@@ -171,6 +172,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
           key={`${selectedBranch}-${date}-${standardFloat ?? "new"}`}
           today={date}
           storeId={selectedBranch}
+          branchName={selectedBranchName}
           standardFloat={standardFloat}
           staff={staff}
           groomers={groomersRes.data ?? []}
