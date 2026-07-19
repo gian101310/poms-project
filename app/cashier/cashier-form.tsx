@@ -19,6 +19,10 @@ type ReceiptData = {
   closingFloat: string;
   cardTips: string;
   expenses: string;
+  changeReturned: string;
+  tipBreakdown: string;
+  expenseBreakdown: string;
+  analysis: string;
 };
 
 function emptyTipLine(id: number): TipLine {
@@ -80,6 +84,7 @@ export function CashierForm({
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
   const [actualCard, setActualCard] = useState("");
+  const [changeReturned, setChangeReturned] = useState("");
   const [submittedBy, setSubmittedBy] = useState("");
   const [tipLines, setTipLines] = useState<TipLine[]>([emptyTipLine(1)]);
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
@@ -98,9 +103,11 @@ export function CashierForm({
   const calc = useMemo(() => {
     const tip = tipTotal;
     const exp = expenseTotal;
+    const change = amount(changeReturned);
     const expectedCashAfterPayouts = isOpening ? 0 : amount(hikeCash) - tip - exp;
     const expectedCardWithTips = isOpening ? 0 : amount(hikeCard) + tip;
-    const cashVariance = isOpening ? 0 : amount(actualCash) - expectedCashAfterPayouts;
+    const rawCashVariance = isOpening ? 0 : amount(actualCash) - expectedCashAfterPayouts;
+    const cashVariance = isOpening ? 0 : rawCashVariance - change;
     const cardVariance = isOpening ? 0 : amount(actualCard) - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
     const activeFloat = phase === "closing" ? amount(closingFloat) : amount(openingFloat);
@@ -108,8 +115,15 @@ export function CashierForm({
     const floatVariance = standardFloat == null
       ? (phase !== "opening" && openingFloat && closingFloat ? amount(closingFloat) - amount(openingFloat) : 0)
       : standardVariance;
-    return { expectedCashAfterPayouts, expectedCardWithTips, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance };
-  }, [actualCard, actualCash, closingFloat, expenseTotal, hikeCard, hikeCash, isOpening, openingFloat, phase, standardFloat, tipTotal]);
+    const analysis = [
+      tip > 0 ? `Card is expected to be higher by ${money(tip)} because card tips are included in card machine payments.` : "",
+      tip > 0 ? `Cash is expected to be lower by ${money(tip)} because card tips are paid out from cash.` : "",
+      exp > 0 ? `Cash is expected to be lower by ${money(exp)} because shop expenses were paid out from cash.` : "",
+      change > 0 ? `Cash drop is higher by ${money(change)} because change must be returned; this is not treated as a discrepancy.` : "",
+      Math.abs(totalVariance) < 0.01 ? "After adjustments, cash and card are balanced." : `After adjustments, remaining variance is ${money(totalVariance)}.`,
+    ].filter(Boolean).join(" ");
+    return { expectedCashAfterPayouts, expectedCardWithTips, rawCashVariance, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance, analysis };
+  }, [actualCard, actualCash, changeReturned, closingFloat, expenseTotal, hikeCard, hikeCash, isOpening, openingFloat, phase, standardFloat, tipTotal]);
 
   function updateTipLine(id: number, patch: Partial<TipLine>) {
     setTipLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
@@ -203,8 +217,19 @@ export function CashierForm({
       ["Actual Card", money(amount(receipt.actualCard))],
       ["Card Tips", money(amount(receipt.cardTips))],
       ["Expenses", money(amount(receipt.expenses))],
+      ["Change Return", money(amount(receipt.changeReturned))],
       ["Closing Float", money(amount(receipt.closingFloat))],
     ];
+    const tipLines = receipt.tipBreakdown
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => `<div class="detail">${escapeHtml(line)}</div>`)
+      .join("");
+    const expenseLines = receipt.expenseBreakdown
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => `<div class="detail">${escapeHtml(line)}</div>`)
+      .join("");
     const html = `<!doctype html>
 <html>
   <head>
@@ -219,6 +244,8 @@ export function CashierForm({
       .row { display: flex; justify-content: space-between; gap: 3mm; margin: 1.2mm 0; }
       .label { white-space: nowrap; }
       .value { text-align: right; font-weight: 700; overflow-wrap: anywhere; }
+      .section { margin-top: 3mm; font-weight: 700; font-size: 11px; }
+      .detail { margin: 1mm 0; font-size: 11px; overflow-wrap: anywhere; }
       .note { margin-top: 3mm; font-size: 11px; }
     </style>
   </head>
@@ -227,7 +254,10 @@ export function CashierForm({
     <p class="sub">${escapeHtml(receipt.branchName)}</p>
     <div class="line"></div>
     ${rows.map(([label, value]) => `<div class="row"><span class="label">${label}</span><span class="value">${value}</span></div>`).join("")}
+    ${tipLines ? `<div class="line"></div><div class="section">Groomer Tips</div>${tipLines}` : ""}
+    ${expenseLines ? `<div class="line"></div><div class="section">Expenses</div>${expenseLines}` : ""}
     <div class="line"></div>
+    <p class="note">${escapeHtml(receipt.analysis)}</p>
     <p class="note">Attach this receipt to the money drop.</p>
     <script>window.print(); window.onafterprint = () => window.close();</script>
   </body>
@@ -244,6 +274,8 @@ export function CashierForm({
   function submit(fd: FormData) {
     const expenses = isOpening ? "" : expenseTotal.toFixed(2);
     const tips = isOpening ? "" : tipTotal.toFixed(2);
+    const tipsDetail = isOpening ? "" : tipBreakdown();
+    const expenseDetail = isOpening ? "" : expenseBreakdown();
     const receipt: ReceiptData | null = phase === "closing"
       ? {
         branchName,
@@ -257,6 +289,10 @@ export function CashierForm({
         closingFloat,
         cardTips: tips,
         expenses,
+        changeReturned,
+        tipBreakdown: tipsDetail,
+        expenseBreakdown: expenseDetail,
+        analysis: calc.analysis,
       }
       : null;
     fd.set("store_id", storeId);
@@ -270,10 +306,12 @@ export function CashierForm({
     fd.set("actual_card", isOpening ? "" : actualCard);
     fd.set("tips", tips);
     fd.set("card_tip_amount", tips);
-    fd.set("tip_lines", isOpening ? "" : tipBreakdown());
+    fd.set("tip_lines", tipsDetail);
     fd.set("expenses", expenses);
     fd.set("shop_purchase_amount", expenses);
-    fd.set("expense_lines", isOpening ? "" : expenseBreakdown());
+    fd.set("expense_lines", expenseDetail);
+    fd.set("change_returned", isOpening ? "" : changeReturned);
+    fd.set("auto_analysis", isOpening ? "" : calc.analysis);
     fd.set("missing_amount", String(calc.cashVariance.toFixed(2)));
     fd.set("card_variance", String(calc.cardVariance.toFixed(2)));
     fd.set("received_correct", Math.abs(calc.totalVariance) < 0.01 ? "yes" : "no");
@@ -293,6 +331,7 @@ export function CashierForm({
       setHikeCard("");
       setActualCash("");
       setActualCard("");
+      setChangeReturned("");
       setSubmittedBy("");
       setTipLines([emptyTipLine(1)]);
       setExpenseLines([emptyExpenseLine(1)]);
@@ -520,12 +559,30 @@ export function CashierForm({
             <p className="text-[11px] text-slate-400">Hike card plus card tips.</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">{phaseText(phase)} cash variance</p>
-            <p className={Math.abs(calc.cashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cashVariance)}</p>
+            <p className="text-xs text-slate-400">Cash over before change</p>
+            <p className={Math.abs(calc.rawCashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.rawCashVariance)}</p>
+            <p className="text-[11px] text-slate-400">Actual cash minus expected cash.</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">{phaseText(phase)} card variance</p>
             <p className={Math.abs(calc.cardVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.cardVariance)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Change to be returned</p>
+            <input
+              value={changeReturned}
+              onChange={(e) => setChangeReturned(e.target.value)}
+              type="number"
+              min="0"
+              step="0.01"
+              className="input mt-1"
+              placeholder="AED"
+            />
+            <p className="text-[11px] text-slate-400">Use when cash drop is higher because exact change was not available.</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">{phaseText(phase)} cash variance after change</p>
+            <p className={Math.abs(calc.cashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-red-600"}>{money(calc.cashVariance)}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">{phase === "shift_change" ? "Shift float variance" : "Closing float variance"}</p>
@@ -546,6 +603,7 @@ export function CashierForm({
                 Explanation: card can be higher by card tips, while cash can be lower because card tips and shop expenses were paid out from cash.
               </p>
             )}
+            {calc.analysis && <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-300">{calc.analysis}</p>}
           </div>
         </div>
       )}
@@ -571,6 +629,8 @@ export function CashierForm({
       <input type="hidden" name="tip_lines" />
       <input type="hidden" name="shop_purchase_amount" />
       <input type="hidden" name="expense_lines" />
+      <input type="hidden" name="change_returned" />
+      <input type="hidden" name="auto_analysis" />
       <input type="hidden" name="received_correct" />
 
       <button className="btn-primary" disabled={pending}>

@@ -52,7 +52,9 @@ export async function submitCashReport(fd: FormData) {
   const actualCard = moneyOrZero(fd, "actual_card");
   const cardTips = moneyOrZero(fd, "card_tip_amount");
   const expenses = moneyOrZero(fd, "expenses");
-  const cashVariance = actualCash - (hikeCash - cardTips - expenses);
+  const changeReturned = moneyOrZero(fd, "change_returned");
+  const rawCashVariance = actualCash - (hikeCash - cardTips - expenses);
+  const cashVariance = rawCashVariance - changeReturned;
   const cardVariance = actualCard - (hikeCard + cardTips);
   const totalVariance = cashVariance + cardVariance;
   const openingFloat = money(fd, "opening_float");
@@ -114,9 +116,12 @@ export async function submitCashReport(fd: FormData) {
     : null;
   const expenseLines = String(fd.get("expense_lines") ?? "").trim();
   const tipLines = String(fd.get("tip_lines") ?? "").trim();
+  const autoAnalysis = String(fd.get("auto_analysis") ?? "").trim();
   const cashierNotes = [
     cardTips ? `Card tips total: AED ${cardTips.toFixed(2)}${tipLines ? `\n${tipLines}` : ""}` : "",
     expenses ? `Expenses total: AED ${expenses.toFixed(2)}${expenseLines ? `\n${expenseLines}` : ""}` : "",
+    changeReturned ? `Change to be returned: AED ${changeReturned.toFixed(2)}` : "",
+    autoAnalysis ? `Auto analysis: ${autoAnalysis}` : "",
     String(fd.get("notes") ?? "").trim(),
   ].filter(Boolean).join("\n");
   const varianceSummary = [
@@ -125,9 +130,12 @@ export async function submitCashReport(fd: FormData) {
     dayFloatVariance != null ? `Opening to closing float variance: AED ${dayFloatVariance.toFixed(2)}` : "",
     shiftFloatVariance != null ? `Previous shift to current opening float variance: AED ${shiftFloatVariance.toFixed(2)}` : "",
     standardFloatVariance != null ? `Standard float variance: AED ${standardFloatVariance.toFixed(2)}` : "",
-    phase !== "opening" ? `Auto cash variance: AED ${cashVariance.toFixed(2)}` : "",
+    phase !== "opening" ? `Cash over before change return: AED ${rawCashVariance.toFixed(2)}` : "",
+    phase !== "opening" && changeReturned ? `Change to be returned: AED ${changeReturned.toFixed(2)}` : "",
+    phase !== "opening" ? `Auto cash variance after change return: AED ${cashVariance.toFixed(2)}` : "",
     phase !== "opening" ? `Auto card variance: AED ${cardVariance.toFixed(2)}` : "",
     phase !== "opening" ? `Total variance: AED ${totalVariance.toFixed(2)}` : "",
+    autoAnalysis ? `Analysis: ${autoAnalysis}` : "",
   ].filter(Boolean).join("\n");
   const hasFloatDiscrepancy = [floatVariance, previousFloatVariance, dayFloatVariance, shiftFloatVariance, standardFloatVariance].some((value) => value != null && Math.abs(value) >= 0.01);
 
