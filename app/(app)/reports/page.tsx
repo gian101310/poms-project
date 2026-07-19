@@ -3,13 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, StatCard, Bar, EmptyState, Badge } from "@/components/ui";
 import { BranchFilter } from "@/components/branch-filter";
 import { fmtDate, fmtTime, todayStr } from "@/lib/tz";
+import { PrintPageButton } from "@/components/print-page-button";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReportsPage({ searchParams }: { searchParams: { date?: string; branch?: string } }) {
+export default async function ReportsPage({ searchParams }: { searchParams: { date?: string; branch?: string; section?: string } }) {
   await requireRole(["super_admin", "manager"]);
   const supabase = createClient();
   const selectedBranch = searchParams.branch && searchParams.branch !== "all" ? searchParams.branch : null;
+  const activeSection = ["summary", "cashier", "kennel", "shop_animals", "inspections"].includes(searchParams.section ?? "")
+    ? searchParams.section!
+    : "summary";
 
   let reportsQuery = supabase.from("daily_reports")
     .select("report_date, store_id").order("report_date", { ascending: false }).limit(30);
@@ -49,18 +54,26 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
     .eq("inspection_date", selectedDate)
     .order("created_at", { ascending: false });
   if (selectedBranch) groomingInspectionsQuery = groomingInspectionsQuery.eq("store_id", selectedBranch);
-  const [{ data: report }, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes, groomingInspectionsRes] = await Promise.all([
+  let cashReportsQuery = supabase
+    .from("cash_reports")
+    .select("id, phase, opening_float, closing_float, cash_sales, card_sales, tips, expenses, expected_cash, counted_cash, expected_card, actual_card, missing_amount, card_variance, card_tip_amount, shop_purchase_amount, expense_notes, notes, received_correct, variance_reason, created_at, store_id, profiles!cash_reports_submitted_by_fkey(full_name, employee_code), turnover:profiles!cash_reports_turnover_to_fkey(full_name, employee_code), stores(name)")
+    .eq("report_date", selectedDate)
+    .order("created_at", { ascending: false });
+  if (selectedBranch) cashReportsQuery = cashReportsQuery.eq("store_id", selectedBranch);
+  const [{ data: report }, kennelReportsRes, shopAnimalReportsRes, kennelInspectionsRes, shopInspectionsRes, groomingInspectionsRes, cashReportsRes] = await Promise.all([
     reportQuery ? reportQuery.maybeSingle() : Promise.resolve({ data: null } as any),
     kennelReportsQuery,
     shopAnimalReportsQuery,
     kennelInspectionsQuery,
     shopInspectionsQuery,
     groomingInspectionsQuery,
+    cashReportsQuery,
   ]);
 
   const c: any = report?.content;
   const kennelReports = kennelReportsRes.error ? [] : (kennelReportsRes.data ?? []) as any[];
   const shopAnimalReports = shopAnimalReportsRes.error ? [] : (shopAnimalReportsRes.data ?? []) as any[];
+  const cashReports = cashReportsRes.error ? [] : (cashReportsRes.data ?? []) as any[];
   const kennelInspections = [
     ...(kennelInspectionsRes.error ? [] : (kennelInspectionsRes.data ?? []).map((item: any) => ({ ...item, source_type: "boarding" }))),
     ...(shopInspectionsRes.error ? [] : (shopInspectionsRes.data ?? []).map((item: any) => ({ ...item, source_type: "shop", category: "shop_animals", walking_ok: null }))),
@@ -87,16 +100,57 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
     feeding: acc.feeding + Number(report.feeding_done ?? 0),
     cleaning: acc.cleaning + Number(report.cleaning_done ?? 0),
   }), { animals: 0, feeding: 0, cleaning: 0 });
+  const cashTotals = cashReports.reduce((acc, report) => ({
+    cash: acc.cash + Number(report.cash_sales ?? 0),
+    card: acc.card + Number(report.card_sales ?? 0),
+    tips: acc.tips + Number(report.tips ?? 0),
+    expenses: acc.expenses + Number(report.expenses ?? 0),
+  }), { cash: 0, card: 0, tips: 0, expenses: 0 });
+  const money = (value: number | null | undefined) =>
+    `AED ${Number(value ?? 0).toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const sectionLinks = [
+    { key: "summary", label: "Summary" },
+    { key: "cashier", label: "Cashier" },
+    { key: "kennel", label: "Kennel" },
+    { key: "shop_animals", label: "Shop Animals" },
+    { key: "inspections", label: "Inspections" },
+  ];
+  const baseParams = `date=${encodeURIComponent(selectedDate)}${selectedBranch ? `&branch=${encodeURIComponent(selectedBranch)}` : ""}`;
 
   return (
     <div>
-      <PageHeader title="Daily Reports" subtitle="Delivered by the orchestrator at 22:15 each night"
-        action={<BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} />} />
+      <div className="print:hidden">
+        <PageHeader title="Reports" subtitle={`Filtered report pages for ${fmtDate(selectedDate)}`}
+          action={
+            <div className="flex flex-wrap items-end gap-2">
+              <BranchFilter branches={branches ?? []} selected={selectedBranch ?? "all"} includeDate date={selectedDate} extraParams={{ section: activeSection }} />
+              <PrintPageButton label="Print filtered page" />
+            </div>
+          } />
+      </div>
+      <div className="mb-4 hidden print:block">
+        <h1 className="text-xl font-bold">POMS Reports</h1>
+        <p className="text-sm">Date: {fmtDate(selectedDate)} · Page: {String(activeSection).replace(/_/g, " ")}</p>
+      </div>
+
+      <div className="mb-6 flex gap-2 overflow-x-auto pb-1 print:hidden">
+        {sectionLinks.map((section) => (
+          <Link
+            key={section.key}
+            href={`/reports?${baseParams}&section=${section.key}`}
+            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium ${activeSection === section.key
+              ? "bg-brand-600 text-white"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"}`}
+          >
+            {section.label}
+          </Link>
+        ))}
+      </div>
 
       {(reports ?? []).length > 0 && (
         <div className="mb-6 flex flex-wrap gap-1.5">
           {(reports ?? []).map((r: any) => (
-            <a key={r.report_date} href={`/reports?date=${r.report_date}${selectedBranch ? `&branch=${selectedBranch}` : ""}`}
+            <a key={r.report_date} href={`/reports?date=${r.report_date}${selectedBranch ? `&branch=${selectedBranch}` : ""}&section=${activeSection}`}
               className={`rounded-lg px-2.5 py-1 text-xs font-medium ${r.report_date === selectedDate
                 ? "bg-brand-600 text-white"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"}`}>
@@ -106,11 +160,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
         </div>
       )}
 
-      {!c && kennelReports.length === 0 && shopAnimalReports.length === 0 ? (
+      {!c && kennelReports.length === 0 && shopAnimalReports.length === 0 && cashReports.length === 0 ? (
         <EmptyState message="No reports yet. The first report is delivered automatically at 22:15 tonight." />
       ) : (
         <div className="space-y-6">
-          {c && (
+          {activeSection === "summary" && c && (
             <div className="card border-l-4 border-l-brand-500 p-4">
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Highlights</p>
               <ul className="space-y-1">
@@ -121,7 +175,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
             </div>
           )}
 
-          {c && (
+          {activeSection === "summary" && c && (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <StatCard label="Task Completion" value={c.tasks?.completion_pct != null ? `${c.tasks.completion_pct}%` : "—"}
                 hint={`${c.tasks?.completed ?? 0}/${c.tasks?.total ?? 0} tasks`} />
@@ -135,6 +189,63 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
             </div>
           )}
 
+          {activeSection === "cashier" && (
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Cashier Reports</h2>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <StatCard label="Cash Drop" value={money(cashTotals.cash)} />
+              <StatCard label="Card Sales" value={money(cashTotals.card)} />
+              <StatCard label="Card Tips" value={money(cashTotals.tips)} />
+              <StatCard label="Expenses" value={money(cashTotals.expenses)} />
+            </div>
+            {cashReportsRes.error ? (
+              <div className="card mt-3 p-4 text-sm text-amber-600">Cashier reports could not be loaded.</div>
+            ) : cashReports.length === 0 ? (
+              <div className="card mt-3 p-4 text-sm text-slate-400">No cashier reports submitted for this date.</div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {cashReports.map((report: any) => (
+                  <details key={report.id} className="card p-4" open>
+                    <summary className="cursor-pointer">
+                      <span className="font-medium capitalize">{String(report.phase).replace(/_/g, " ")}</span>
+                      <span className="text-sm text-slate-400"> · {report.profiles?.full_name ?? "Unknown"} · {fmtTime(report.created_at)} · {report.stores?.name ?? "Branch"}</span>
+                    </summary>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full min-w-[900px] text-sm">
+                        <thead>
+                          <tr>
+                            {["Phase", "Staff", "Handover", "Float", "Hike Cash", "Actual Cash", "Hike Card", "Actual Card", "Tips", "Expenses", "Variance", "Notes"].map((h) => <th key={h} className="th">{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="table-row">
+                            <td className="td capitalize">{String(report.phase).replace(/_/g, " ")}</td>
+                            <td className="td">{report.profiles?.full_name ?? "—"} <span className="text-xs text-slate-400">({report.profiles?.employee_code ?? "—"})</span></td>
+                            <td className="td">{report.phase === "shift_change" ? (report.turnover?.full_name ?? "—") : "—"}</td>
+                            <td className="td">{money(report.phase === "closing" ? report.closing_float : report.opening_float)}</td>
+                            <td className="td">{report.phase === "opening" ? "—" : money(report.expected_cash)}</td>
+                            <td className="td">{report.phase === "opening" ? "—" : money(report.counted_cash ?? report.cash_sales)}</td>
+                            <td className="td">{report.phase === "opening" ? "—" : money(report.expected_card)}</td>
+                            <td className="td">{report.phase === "opening" ? "—" : money(report.actual_card ?? report.card_sales)}</td>
+                            <td className="td">{report.phase === "opening" ? "—" : money(report.card_tip_amount ?? report.tips)}</td>
+                            <td className="td">{report.phase === "opening" ? "—" : money(report.shop_purchase_amount ?? report.expenses)}</td>
+                            <td className="td">
+                              <Badge value={report.received_correct ? "resolved" : "open"} />
+                              <p className="mt-1 text-xs text-slate-500">{report.variance_reason || "Clear"}</p>
+                            </td>
+                            <td className="td whitespace-pre-wrap">{report.notes || report.expense_notes || "—"}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+          )}
+
+          {activeSection === "kennel" && (
           <section>
             <h2 className="mb-3 text-lg font-semibold">Kennel Reports</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -206,7 +317,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
               </div>
             )}
           </section>
+          )}
 
+          {activeSection === "shop_animals" && (
           <section>
             <h2 className="mb-3 text-lg font-semibold">Shop Animal Reports</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -256,7 +369,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
               </div>
             )}
           </section>
+          )}
 
+          {activeSection === "inspections" && (
           <section>
             <h2 className="mb-3 text-lg font-semibold">Kennel Inspections</h2>
             {kennelInspectionsRes.error || shopInspectionsRes.error || groomingInspectionsRes.error ? (
@@ -294,8 +409,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
               </div>
             )}
           </section>
+          )}
 
-          {c && (c.departments ?? []).length > 0 && (
+          {activeSection === "summary" && c && (c.departments ?? []).length > 0 && (
             <section>
               <h2 className="mb-3 text-lg font-semibold">Departments</h2>
               <div className="card space-y-3 p-4">
@@ -312,7 +428,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
             </section>
           )}
 
-          {c && <div className="grid gap-6 md:grid-cols-2">
+          {activeSection === "summary" && c && <div className="grid gap-6 md:grid-cols-2">
             {(c.unfinished_by ?? []).length > 0 && (
               <section>
                 <h2 className="mb-3 text-lg font-semibold">Unfinished Tasks</h2>

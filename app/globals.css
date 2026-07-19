@@ -25,3 +25,26 @@ body {
 .th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400; }
 .td { @apply px-3 py-2 text-sm; }
 .table-row { @apply border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50; }
+
+@media print {
+  aside,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  main,
+  .md\:pl-60 {
+    padding: 0 !important;
+  }
+
+  .card {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+}

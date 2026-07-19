@@ -85,6 +85,7 @@ export function CashierForm({
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
   const [lastReceipt, setLastReceipt] = useState<ReceiptData | null>(null);
   const isOpening = phase === "opening";
+  const visiblePhaseFloat = phase === "shift_change" ? openingFloat : closingFloat;
   const tipTotal = useMemo(
     () => tipLines.reduce((total, line) => total + amount(line.amount), 0),
     [tipLines],
@@ -260,7 +261,7 @@ export function CashierForm({
       : null;
     fd.set("store_id", storeId);
     fd.set("opening_float", phase === "closing" ? "" : openingFloat);
-    fd.set("closing_float", phase === "opening" ? "" : closingFloat);
+    fd.set("closing_float", phase === "closing" ? closingFloat : "");
     fd.set("cash_sales", isOpening ? "" : actualCash);
     fd.set("card_sales", isOpening ? "" : actualCard);
     fd.set("expected_cash", isOpening ? "" : hikeCash);
@@ -302,16 +303,15 @@ export function CashierForm({
   return (
     <form ref={formRef} action={submit} className="card mb-6 space-y-4 p-4">
       <input type="hidden" name="store_id" value={storeId} />
+      {isOpening && (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Cash float</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {phase !== "closing" && (
-            <div>
-              <label className="label">{phase === "shift_change" ? "Actual shift float received" : "Actual opening float received"}</label>
-              <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-              <p className="mt-1 text-xs text-slate-500">Count the real cash float received.</p>
-            </div>
-          )}
+          <div>
+            <label className="label">Actual opening float received</label>
+            <input value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+            <p className="mt-1 text-xs text-slate-500">Count the real cash float received in the morning.</p>
+          </div>
           <div>
             <label className="label">Standard float</label>
             <div className="input flex items-center bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
@@ -323,7 +323,8 @@ export function CashierForm({
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      )}
+      <div className={`grid grid-cols-1 gap-3 ${phase === "shift_change" ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         <div>
           <label className="label">Date</label>
           <input name="report_date" type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="input" required />
@@ -337,19 +338,21 @@ export function CashierForm({
           </select>
         </div>
         <div>
-          <label className="label">Opened / closed by</label>
+          <label className="label">{phase === "opening" ? "Opened by" : phase === "closing" ? "Closed by" : "Submitted by"}</label>
           <select name="submitted_by" className="input" value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)} required>
             <option value="">Choose staff</option>
             {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
           </select>
         </div>
-        <div>
-          <label className="label">Handover to</label>
-          <select name="turnover_to" className="input" defaultValue="">
-            <option value="">No handover</option>
-            {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
-          </select>
-        </div>
+        {phase === "shift_change" && (
+          <div>
+            <label className="label">Handover to</label>
+            <select name="turnover_to" className="input" defaultValue="">
+              <option value="">Choose receiver</option>
+              {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name} ({s.employee_code})</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {!isOpening && (
@@ -391,9 +394,17 @@ export function CashierForm({
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{phase === "closing" ? "Closing float" : "Shift float"}</p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
-              <label className="label">{phase === "shift_change" ? "Shift float" : "Closing float"}</label>
-              <input value={closingFloat} onChange={(e) => setClosingFloat(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-              <p className={standardFloat != null && Math.abs(amount(closingFloat) - standardFloat) >= 0.01 ? "mt-1 text-xs text-red-600" : "mt-1 text-xs text-slate-500"}>
+              <label className="label">{phase === "shift_change" ? "Actual shift float received" : "Closing float"}</label>
+              <input
+                value={phase === "shift_change" ? openingFloat : closingFloat}
+                onChange={(e) => phase === "shift_change" ? setOpeningFloat(e.target.value) : setClosingFloat(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                className="input"
+                placeholder="AED"
+              />
+              <p className={standardFloat != null && Math.abs(amount(visiblePhaseFloat) - standardFloat) >= 0.01 ? "mt-1 text-xs text-red-600" : "mt-1 text-xs text-slate-500"}>
                 {standardFloat == null
                   ? "Set the standard float in Command Center."
                   : `Must match standard float ${money(standardFloat)}.`}

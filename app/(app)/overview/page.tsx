@@ -265,7 +265,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
     { label: "Shop Animals", href: "/public/sheets?tab=shop", hint: "Public shop animal sheet" },
     { label: "Grooming Sheet", href: "/public/sheets?tab=grooming", hint: "Public grooming request sheet" },
     { label: "Inspection", href: "/public/sheets?tab=inspection", hint: "Admin inspection sheet" },
-    { label: "Daily Reports", href: `/reports?${quickDateParam}`, hint: "Submitted reports" },
+    { label: "Reports", href: `/reports?${quickDateParam}&section=summary`, hint: "Filtered report pages and printing" },
   ];
 
   // group instances by department
@@ -672,7 +672,10 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cashier report logs</p>
             <p className="mt-1 text-sm text-slate-500">Phase, staff, and discrepancies for {date}</p>
           </div>
-          <Link href={`/cashier?${quickDateParam}`} className="btn-secondary">Open cashier page</Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/reports?${quickDateParam}&section=cashier`} className="btn-secondary">Open cashier reports</Link>
+            <Link href={`/cashier?${quickDateParam}`} className="btn-secondary">Open cashier page</Link>
+          </div>
         </div>
         {cashReports.length === 0 ? (
           <p className="text-sm text-slate-400">No cashier reports submitted yet.</p>

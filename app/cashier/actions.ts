@@ -162,6 +162,7 @@ export async function submitCashReport(fd: FormData) {
 
   revalidatePath("/cashier");
   revalidatePath("/overview");
+  revalidatePath("/reports");
   return { ok: true };
 }
 
@@ -177,5 +178,6 @@ export async function deleteCashReport(fd: FormData) {
 
   revalidatePath("/cashier");
   revalidatePath("/overview");
+  revalidatePath("/reports");
   return { ok: true };
 }

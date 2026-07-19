@@ -38,7 +38,7 @@ const managerExtra: NavItem[] = [
   { href: "/overview", label: "Command Center", icon: LayoutDashboard },
   { href: "/broadcast", label: "Send Alert", icon: Send },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/reports", label: "Daily Reports", icon: FileText },
+  { href: "/reports", label: "Reports", icon: FileText },
   { href: "/grooming", label: "Grooming", icon: Scissors },
   { href: "/qr", label: "Shop QR", icon: QrCode },
   { href: "/search", label: "Search", icon: SearchIcon },

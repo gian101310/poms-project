@@ -6,12 +6,14 @@ export function BranchFilter({
   includeDate,
   date,
   label = "Branch",
+  extraParams,
 }: {
   branches: any[];
   selected?: string;
   includeDate?: boolean;
   date?: string;
   label?: string;
+  extraParams?: Record<string, string | undefined>;
 }) {
   function submit(e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) {
     e.currentTarget.form?.requestSubmit();
@@ -19,6 +21,9 @@ export function BranchFilter({
 
   return (
     <form className="flex flex-wrap items-end gap-2">
+      {Object.entries(extraParams ?? {}).map(([key, value]) => (
+        value ? <input key={key} type="hidden" name={key} value={value} /> : null
+      ))}
       {includeDate && (
         <div>
           <label className="label">Date</label>
