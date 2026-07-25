@@ -50,6 +50,8 @@ export async function submitCashReport(fd: FormData) {
   const actualCash = moneyOrZero(fd, "counted_cash");
   const hikeCard = moneyOrZero(fd, "expected_card");
   const actualCard = moneyOrZero(fd, "actual_card");
+  const cardMachine1 = moneyOrZero(fd, "card_machine_1");
+  const cardMachine2 = moneyOrZero(fd, "card_machine_2");
   const cardTips = moneyOrZero(fd, "card_tip_amount");
   const expenses = moneyOrZero(fd, "expenses");
   const changeReturned = moneyOrZero(fd, "change_returned");
@@ -118,6 +120,8 @@ export async function submitCashReport(fd: FormData) {
   const tipLines = String(fd.get("tip_lines") ?? "").trim();
   const autoAnalysis = String(fd.get("auto_analysis") ?? "").trim();
   const cashierNotes = [
+    phase !== "opening" ? `Card machine 1: AED ${cardMachine1.toFixed(2)}` : "",
+    phase !== "opening" ? `Card machine 2: AED ${cardMachine2.toFixed(2)}` : "",
     cardTips ? `Card tips total: AED ${cardTips.toFixed(2)}${tipLines ? `\n${tipLines}` : ""}` : "",
     expenses ? `Expenses total: AED ${expenses.toFixed(2)}${expenseLines ? `\n${expenseLines}` : ""}` : "",
     changeReturned ? `Change to be returned: AED ${changeReturned.toFixed(2)}` : "",

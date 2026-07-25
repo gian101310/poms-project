@@ -214,7 +214,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                       <table className="w-full min-w-[900px] text-sm">
                         <thead>
                           <tr>
-                            {["Phase", "Staff", "Handover", "Float", "Hike Cash", "Actual Cash", "Hike Card", "Actual Card", "Tips", "Expenses", "Variance", "Notes"].map((h) => <th key={h} className="th">{h}</th>)}
+                            {["Phase", "Staff", "Handover", "Float", "Hike Cash", "Money Drop", "Hike Card", "Actual Card", "Tips", "Expenses", "Variance", "Notes"].map((h) => <th key={h} className="th">{h}</th>)}
                           </tr>
                         </thead>
                         <tbody>

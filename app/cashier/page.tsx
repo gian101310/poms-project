@@ -146,7 +146,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
 
   function phaseCashLabel(phase: string) {
     if (phase === "shift_change") return "Shift change cash / drop";
-    if (phase === "closing") return "Closing cash / drop";
+    if (phase === "closing") return "Money drop";
     return "Opening cash / drop";
   }
 

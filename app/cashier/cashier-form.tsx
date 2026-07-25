@@ -13,9 +13,11 @@ type ReceiptData = {
   printedAt: string;
   staffName: string;
   hikeCash: string;
-  actualCash: string;
+  moneyDrop: string;
   hikeCard: string;
   actualCard: string;
+  cardMachine1: string;
+  cardMachine2: string;
   closingFloat: string;
   cardTips: string;
   expenses: string;
@@ -83,14 +85,18 @@ export function CashierForm({
   const [hikeCash, setHikeCash] = useState("");
   const [hikeCard, setHikeCard] = useState("");
   const [actualCash, setActualCash] = useState("");
-  const [actualCard, setActualCard] = useState("");
+  const [cardMachine1, setCardMachine1] = useState("");
+  const [cardMachine2, setCardMachine2] = useState("");
   const [changeReturned, setChangeReturned] = useState("");
   const [submittedBy, setSubmittedBy] = useState("");
   const [tipLines, setTipLines] = useState<TipLine[]>([emptyTipLine(1)]);
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
   const [lastReceipt, setLastReceipt] = useState<ReceiptData | null>(null);
   const isOpening = phase === "opening";
+  const isClosing = phase === "closing";
   const visiblePhaseFloat = phase === "shift_change" ? openingFloat : closingFloat;
+  const actualCardAmount = amount(cardMachine1) + amount(cardMachine2);
+  const actualCard = isOpening ? "" : actualCardAmount.toFixed(2);
   const tipTotal = useMemo(
     () => tipLines.reduce((total, line) => total + amount(line.amount), 0),
     [tipLines],
@@ -106,9 +112,10 @@ export function CashierForm({
     const change = amount(changeReturned);
     const expectedCashAfterPayouts = isOpening ? 0 : amount(hikeCash) - tip - exp;
     const expectedCardWithTips = isOpening ? 0 : amount(hikeCard) + tip;
-    const rawCashVariance = isOpening ? 0 : amount(actualCash) - expectedCashAfterPayouts;
+    const moneyDrop = isOpening ? 0 : isClosing ? expectedCashAfterPayouts + change : amount(actualCash);
+    const rawCashVariance = isOpening ? 0 : moneyDrop - expectedCashAfterPayouts;
     const cashVariance = isOpening ? 0 : rawCashVariance - change;
-    const cardVariance = isOpening ? 0 : amount(actualCard) - expectedCardWithTips;
+    const cardVariance = isOpening ? 0 : actualCardAmount - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
     const activeFloat = phase === "closing" ? amount(closingFloat) : amount(openingFloat);
     const standardVariance = standardFloat == null ? 0 : activeFloat - standardFloat;
@@ -122,8 +129,8 @@ export function CashierForm({
       change > 0 ? `Cash drop is higher by ${money(change)} because change must be returned; this is not treated as a discrepancy.` : "",
       Math.abs(totalVariance) < 0.01 ? "After adjustments, cash and card are balanced." : `After adjustments, remaining variance is ${money(totalVariance)}.`,
     ].filter(Boolean).join(" ");
-    return { expectedCashAfterPayouts, expectedCardWithTips, rawCashVariance, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance, analysis };
-  }, [actualCard, actualCash, changeReturned, closingFloat, expenseTotal, hikeCard, hikeCash, isOpening, openingFloat, phase, standardFloat, tipTotal]);
+    return { expectedCashAfterPayouts, expectedCardWithTips, moneyDrop, rawCashVariance, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance, analysis };
+  }, [actualCardAmount, actualCash, changeReturned, closingFloat, expenseTotal, hikeCard, hikeCash, isClosing, isOpening, openingFloat, phase, standardFloat, tipTotal]);
 
   function updateTipLine(id: number, patch: Partial<TipLine>) {
     setTipLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
@@ -212,8 +219,10 @@ export function CashierForm({
       ["Time", escapeHtml(receipt.printedAt)],
       ["Staff", escapeHtml(receipt.staffName)],
       ["Hike Cash", money(amount(receipt.hikeCash))],
-      ["Actual Cash", money(amount(receipt.actualCash))],
+      ["Money Drop", money(amount(receipt.moneyDrop))],
       ["Hike Card", money(amount(receipt.hikeCard))],
+      ["Card Machine 1", money(amount(receipt.cardMachine1))],
+      ["Card Machine 2", money(amount(receipt.cardMachine2))],
       ["Actual Card", money(amount(receipt.actualCard))],
       ["Card Tips", money(amount(receipt.cardTips))],
       ["Expenses", money(amount(receipt.expenses))],
@@ -283,9 +292,11 @@ export function CashierForm({
         printedAt: new Date().toLocaleString("en-AE", { dateStyle: "short", timeStyle: "short" }),
         staffName: staffLabel(submittedBy),
         hikeCash,
-        actualCash,
+        moneyDrop: calc.moneyDrop.toFixed(2),
         hikeCard,
         actualCard,
+        cardMachine1,
+        cardMachine2,
         closingFloat,
         cardTips: tips,
         expenses,
@@ -298,12 +309,14 @@ export function CashierForm({
     fd.set("store_id", storeId);
     fd.set("opening_float", phase === "closing" ? "" : openingFloat);
     fd.set("closing_float", phase === "closing" ? closingFloat : "");
-    fd.set("cash_sales", isOpening ? "" : actualCash);
+    fd.set("cash_sales", isOpening ? "" : calc.moneyDrop.toFixed(2));
     fd.set("card_sales", isOpening ? "" : actualCard);
     fd.set("expected_cash", isOpening ? "" : hikeCash);
-    fd.set("counted_cash", isOpening ? "" : actualCash);
+    fd.set("counted_cash", isOpening ? "" : calc.moneyDrop.toFixed(2));
     fd.set("expected_card", isOpening ? "" : hikeCard);
     fd.set("actual_card", isOpening ? "" : actualCard);
+    fd.set("card_machine_1", isOpening ? "" : cardMachine1);
+    fd.set("card_machine_2", isOpening ? "" : cardMachine2);
     fd.set("tips", tips);
     fd.set("card_tip_amount", tips);
     fd.set("tip_lines", tipsDetail);
@@ -330,7 +343,8 @@ export function CashierForm({
       setHikeCash("");
       setHikeCard("");
       setActualCash("");
-      setActualCard("");
+      setCardMachine1("");
+      setCardMachine2("");
       setChangeReturned("");
       setSubmittedBy("");
       setTipLines([emptyTipLine(1)]);
@@ -400,15 +414,17 @@ export function CashierForm({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded-md border border-slate-100 p-3 dark:border-slate-800">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Cash</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className={`grid grid-cols-1 gap-2 ${isClosing ? "" : "sm:grid-cols-2"}`}>
                 <div>
                   <label className="label">Hike cash sales</label>
                   <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
                 </div>
-                <div>
-                  <label className="label">Actual cash / money drop</label>
-                  <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
-                </div>
+                {!isClosing && (
+                  <div>
+                    <label className="label">Actual cash / money drop</label>
+                    <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                  </div>
+                )}
               </div>
             </div>
             <div className="rounded-md border border-slate-100 p-3 dark:border-slate-800">
@@ -419,8 +435,18 @@ export function CashierForm({
                   <input value={hikeCard} onChange={(e) => setHikeCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
                 </div>
                 <div>
-                  <label className="label">Actual card machine sales</label>
-                  <input value={actualCard} onChange={(e) => setActualCard(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                  <label className="label">Card machine 1</label>
+                  <input value={cardMachine1} onChange={(e) => setCardMachine1(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+                <div>
+                  <label className="label">Card machine 2</label>
+                  <input value={cardMachine2} onChange={(e) => setCardMachine2(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                </div>
+                <div>
+                  <label className="label">Actual card total</label>
+                  <div className="input flex items-center bg-slate-100 font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    {money(actualCardAmount)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -553,6 +579,13 @@ export function CashierForm({
             <p className="font-semibold">{money(calc.expectedCashAfterPayouts)}</p>
             <p className="text-[11px] text-slate-400">Hike cash minus card tips and expenses.</p>
           </div>
+          {isClosing && (
+            <div>
+              <p className="text-xs text-slate-400">Money drop</p>
+              <p className="font-semibold">{money(calc.moneyDrop)}</p>
+              <p className="text-[11px] text-slate-400">Hike cash less tips and expenses, plus change to return.</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-slate-400">Expected card with tips</p>
             <p className="font-semibold">{money(calc.expectedCardWithTips)}</p>
@@ -624,6 +657,8 @@ export function CashierForm({
       <input type="hidden" name="missing_amount" />
       <input type="hidden" name="expected_card" />
       <input type="hidden" name="actual_card" />
+      <input type="hidden" name="card_machine_1" />
+      <input type="hidden" name="card_machine_2" />
       <input type="hidden" name="card_variance" />
       <input type="hidden" name="card_tip_amount" />
       <input type="hidden" name="tip_lines" />

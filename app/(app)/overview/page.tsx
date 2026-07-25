@@ -701,7 +701,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { d
                   </div>
                   <div className="mt-2 grid gap-2 text-xs text-slate-500 md:grid-cols-4">
                     <span>{phaseFloatLabel(report.phase)}: {money(Number(activeFloat ?? 0))}{standardFloat != null ? ` / standard ${money(standardFloat)}` : ""}</span>
-                    <span>Cash: Hike {money(Number(report.expected_cash ?? 0))} / actual {money(Number(report.counted_cash ?? report.cash_sales ?? 0))}</span>
+                    <span>Cash: Hike {money(Number(report.expected_cash ?? 0))} / drop {money(Number(report.counted_cash ?? report.cash_sales ?? 0))}</span>
                     <span>Card: Hike {money(Number(report.expected_card ?? 0))} / actual {money(Number(report.actual_card ?? report.card_sales ?? 0))}</span>
                     <span>Tips {money(Number(report.card_tip_amount ?? report.tips ?? 0))} · Expenses {money(Number(report.shop_purchase_amount ?? report.expenses ?? 0))}</span>
                   </div>
