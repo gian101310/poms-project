@@ -146,7 +146,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
 
   function phaseCashLabel(phase: string) {
     if (phase === "shift_change") return "Shift change cash / drop";
-    if (phase === "closing") return "Money drop";
+    if (phase === "closing") return "Actual money drop";
     return "Opening cash / drop";
   }
 
@@ -182,7 +182,7 @@ export default async function CashierPage({ searchParams }: { searchParams: { da
       )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Cash Drop" value={money(totals.cash_sales)} />
+        <StatCard label="Actual Money Drop" value={money(totals.cash_sales)} />
         <StatCard label="Card Sales" value={money(totals.card_sales)} />
         <StatCard label="Tips" value={money(totals.tips)} />
         <StatCard label="Expenses" value={money(totals.expenses)} />

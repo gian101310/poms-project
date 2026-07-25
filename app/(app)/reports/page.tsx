@@ -193,7 +193,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
           <section>
             <h2 className="mb-3 text-lg font-semibold">Cashier Reports</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <StatCard label="Cash Drop" value={money(cashTotals.cash)} />
+              <StatCard label="Actual Money Drop" value={money(cashTotals.cash)} />
               <StatCard label="Card Sales" value={money(cashTotals.card)} />
               <StatCard label="Card Tips" value={money(cashTotals.tips)} />
               <StatCard label="Expenses" value={money(cashTotals.expenses)} />
@@ -214,7 +214,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: { da
                       <table className="w-full min-w-[900px] text-sm">
                         <thead>
                           <tr>
-                            {["Phase", "Staff", "Handover", "Float", "Hike Cash", "Money Drop", "Hike Card", "Actual Card", "Tips", "Expenses", "Variance", "Notes"].map((h) => <th key={h} className="th">{h}</th>)}
+                            {["Phase", "Staff", "Handover", "Float", "Hike Cash", "Actual Money Drop", "Hike Card", "Actual Card", "Tips", "Expenses", "Variance", "Notes"].map((h) => <th key={h} className="th">{h}</th>)}
                           </tr>
                         </thead>
                         <tbody>

@@ -13,6 +13,7 @@ type ReceiptData = {
   printedAt: string;
   staffName: string;
   hikeCash: string;
+  expectedMoneyDrop: string;
   moneyDrop: string;
   hikeCard: string;
   actualCard: string;
@@ -87,7 +88,6 @@ export function CashierForm({
   const [actualCash, setActualCash] = useState("");
   const [cardMachine1, setCardMachine1] = useState("");
   const [cardMachine2, setCardMachine2] = useState("");
-  const [changeReturned, setChangeReturned] = useState("");
   const [submittedBy, setSubmittedBy] = useState("");
   const [tipLines, setTipLines] = useState<TipLine[]>([emptyTipLine(1)]);
   const [expenseLines, setExpenseLines] = useState<ExpenseLine[]>([emptyExpenseLine(1)]);
@@ -109,11 +109,11 @@ export function CashierForm({
   const calc = useMemo(() => {
     const tip = tipTotal;
     const exp = expenseTotal;
-    const change = amount(changeReturned);
-    const expectedCashAfterPayouts = isOpening ? 0 : amount(hikeCash) - tip - exp;
+    const expectedMoneyDrop = isOpening ? 0 : amount(hikeCash) - tip - exp;
     const expectedCardWithTips = isOpening ? 0 : amount(hikeCard) + tip;
-    const moneyDrop = isOpening ? 0 : isClosing ? expectedCashAfterPayouts + change : amount(actualCash);
-    const rawCashVariance = isOpening ? 0 : moneyDrop - expectedCashAfterPayouts;
+    const moneyDrop = isOpening ? 0 : amount(actualCash);
+    const rawCashVariance = isOpening ? 0 : moneyDrop - expectedMoneyDrop;
+    const change = isOpening ? 0 : Math.max(0, rawCashVariance);
     const cashVariance = isOpening ? 0 : rawCashVariance - change;
     const cardVariance = isOpening ? 0 : actualCardAmount - expectedCardWithTips;
     const totalVariance = cashVariance + cardVariance;
@@ -129,8 +129,8 @@ export function CashierForm({
       change > 0 ? `Cash drop is higher by ${money(change)} because change must be returned; this is not treated as a discrepancy.` : "",
       Math.abs(totalVariance) < 0.01 ? "After adjustments, cash and card are balanced." : `After adjustments, remaining variance is ${money(totalVariance)}.`,
     ].filter(Boolean).join(" ");
-    return { expectedCashAfterPayouts, expectedCardWithTips, moneyDrop, rawCashVariance, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance, analysis };
-  }, [actualCardAmount, actualCash, changeReturned, closingFloat, expenseTotal, hikeCard, hikeCash, isClosing, isOpening, openingFloat, phase, standardFloat, tipTotal]);
+    return { expectedMoneyDrop, expectedCardWithTips, moneyDrop, change, rawCashVariance, cashVariance, cardVariance, totalVariance, floatVariance, standardVariance, analysis };
+  }, [actualCardAmount, actualCash, closingFloat, expenseTotal, hikeCard, hikeCash, isOpening, openingFloat, phase, standardFloat, tipTotal]);
 
   function updateTipLine(id: number, patch: Partial<TipLine>) {
     setTipLines((lines) => lines.map((line) => line.id === id ? { ...line, ...patch } : line));
@@ -219,7 +219,8 @@ export function CashierForm({
       ["Time", escapeHtml(receipt.printedAt)],
       ["Staff", escapeHtml(receipt.staffName)],
       ["Hike Cash", money(amount(receipt.hikeCash))],
-      ["Money Drop", money(amount(receipt.moneyDrop))],
+      ["Expected Money Drop", money(amount(receipt.expectedMoneyDrop))],
+      ["Actual Money Drop", money(amount(receipt.moneyDrop))],
       ["Hike Card", money(amount(receipt.hikeCard))],
       ["Card Machine 1", money(amount(receipt.cardMachine1))],
       ["Card Machine 2", money(amount(receipt.cardMachine2))],
@@ -292,6 +293,7 @@ export function CashierForm({
         printedAt: new Date().toLocaleString("en-AE", { dateStyle: "short", timeStyle: "short" }),
         staffName: staffLabel(submittedBy),
         hikeCash,
+        expectedMoneyDrop: calc.expectedMoneyDrop.toFixed(2),
         moneyDrop: calc.moneyDrop.toFixed(2),
         hikeCard,
         actualCard,
@@ -300,7 +302,7 @@ export function CashierForm({
         closingFloat,
         cardTips: tips,
         expenses,
-        changeReturned,
+        changeReturned: calc.change.toFixed(2),
         tipBreakdown: tipsDetail,
         expenseBreakdown: expenseDetail,
         analysis: calc.analysis,
@@ -323,7 +325,7 @@ export function CashierForm({
     fd.set("expenses", expenses);
     fd.set("shop_purchase_amount", expenses);
     fd.set("expense_lines", expenseDetail);
-    fd.set("change_returned", isOpening ? "" : changeReturned);
+    fd.set("change_returned", isOpening ? "" : calc.change.toFixed(2));
     fd.set("auto_analysis", isOpening ? "" : calc.analysis);
     fd.set("missing_amount", String(calc.cashVariance.toFixed(2)));
     fd.set("card_variance", String(calc.cardVariance.toFixed(2)));
@@ -345,7 +347,6 @@ export function CashierForm({
       setActualCash("");
       setCardMachine1("");
       setCardMachine2("");
-      setChangeReturned("");
       setSubmittedBy("");
       setTipLines([emptyTipLine(1)]);
       setExpenseLines([emptyExpenseLine(1)]);
@@ -414,17 +415,24 @@ export function CashierForm({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded-md border border-slate-100 p-3 dark:border-slate-800">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Cash</p>
-              <div className={`grid grid-cols-1 gap-2 ${isClosing ? "" : "sm:grid-cols-2"}`}>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="label">Hike cash sales</label>
                   <input value={hikeCash} onChange={(e) => setHikeCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
                 </div>
-                {!isClosing && (
+                {isClosing && (
                   <div>
-                    <label className="label">Actual cash / money drop</label>
-                    <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                    <label className="label">Expected money drop</label>
+                    <div className="input flex items-center bg-slate-100 font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                      {money(calc.expectedMoneyDrop)}
+                    </div>
                   </div>
                 )}
+                <div className={isClosing ? "sm:col-span-2" : ""}>
+                  <label className="label">{isClosing ? "Actual money drop" : "Actual cash / money drop"}</label>
+                  <input value={actualCash} onChange={(e) => setActualCash(e.target.value)} type="number" min="0" step="0.01" className="input" placeholder="AED" />
+                  {isClosing && <p className="mt-1 text-xs text-slate-500">Count the real cash placed in the money drop envelope.</p>}
+                </div>
               </div>
             </div>
             <div className="rounded-md border border-slate-100 p-3 dark:border-slate-800">
@@ -575,15 +583,15 @@ export function CashierForm({
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Auto calculation</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Expected cash after payouts</p>
-            <p className="font-semibold">{money(calc.expectedCashAfterPayouts)}</p>
+            <p className="text-xs text-slate-400">Expected money drop</p>
+            <p className="font-semibold">{money(calc.expectedMoneyDrop)}</p>
             <p className="text-[11px] text-slate-400">Hike cash minus card tips and expenses.</p>
           </div>
           {isClosing && (
             <div>
-              <p className="text-xs text-slate-400">Money drop</p>
+              <p className="text-xs text-slate-400">Actual money drop</p>
               <p className="font-semibold">{money(calc.moneyDrop)}</p>
-              <p className="text-[11px] text-slate-400">Hike cash less tips and expenses, plus change to return.</p>
+              <p className="text-[11px] text-slate-400">Cash counted in the money drop envelope.</p>
             </div>
           )}
           <div>
@@ -592,9 +600,9 @@ export function CashierForm({
             <p className="text-[11px] text-slate-400">Hike card plus card tips.</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Cash over before change</p>
+            <p className="text-xs text-slate-400">Actual vs expected cash</p>
             <p className={Math.abs(calc.rawCashVariance) < 0.01 ? "font-semibold text-green-600" : "font-semibold text-amber-600"}>{money(calc.rawCashVariance)}</p>
-            <p className="text-[11px] text-slate-400">Actual cash minus expected cash.</p>
+            <p className="text-[11px] text-slate-400">Actual money drop minus expected money drop.</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">{phaseText(phase)} card variance</p>
@@ -602,16 +610,8 @@ export function CashierForm({
           </div>
           <div>
             <p className="text-xs text-slate-400">Change to be returned</p>
-            <input
-              value={changeReturned}
-              onChange={(e) => setChangeReturned(e.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              className="input mt-1"
-              placeholder="AED"
-            />
-            <p className="text-[11px] text-slate-400">Use when cash drop is higher because exact change was not available.</p>
+            <p className="mt-1 font-semibold">{money(calc.change)}</p>
+            <p className="text-[11px] text-slate-400">Automatic when actual money drop is higher than expected.</p>
           </div>
           <div>
             <p className="text-xs text-slate-400">{phaseText(phase)} cash variance after change</p>

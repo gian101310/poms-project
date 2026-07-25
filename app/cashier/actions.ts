@@ -55,7 +55,8 @@ export async function submitCashReport(fd: FormData) {
   const cardTips = moneyOrZero(fd, "card_tip_amount");
   const expenses = moneyOrZero(fd, "expenses");
   const changeReturned = moneyOrZero(fd, "change_returned");
-  const rawCashVariance = actualCash - (hikeCash - cardTips - expenses);
+  const expectedMoneyDrop = hikeCash - cardTips - expenses;
+  const rawCashVariance = actualCash - expectedMoneyDrop;
   const cashVariance = rawCashVariance - changeReturned;
   const cardVariance = actualCard - (hikeCard + cardTips);
   const totalVariance = cashVariance + cardVariance;
@@ -120,6 +121,8 @@ export async function submitCashReport(fd: FormData) {
   const tipLines = String(fd.get("tip_lines") ?? "").trim();
   const autoAnalysis = String(fd.get("auto_analysis") ?? "").trim();
   const cashierNotes = [
+    phase !== "opening" ? `Expected money drop: AED ${expectedMoneyDrop.toFixed(2)}` : "",
+    phase !== "opening" ? `Actual money drop: AED ${actualCash.toFixed(2)}` : "",
     phase !== "opening" ? `Card machine 1: AED ${cardMachine1.toFixed(2)}` : "",
     phase !== "opening" ? `Card machine 2: AED ${cardMachine2.toFixed(2)}` : "",
     cardTips ? `Card tips total: AED ${cardTips.toFixed(2)}${tipLines ? `\n${tipLines}` : ""}` : "",
@@ -134,7 +137,9 @@ export async function submitCashReport(fd: FormData) {
     dayFloatVariance != null ? `Opening to closing float variance: AED ${dayFloatVariance.toFixed(2)}` : "",
     shiftFloatVariance != null ? `Previous shift to current opening float variance: AED ${shiftFloatVariance.toFixed(2)}` : "",
     standardFloatVariance != null ? `Standard float variance: AED ${standardFloatVariance.toFixed(2)}` : "",
-    phase !== "opening" ? `Cash over before change return: AED ${rawCashVariance.toFixed(2)}` : "",
+    phase !== "opening" ? `Expected money drop: AED ${expectedMoneyDrop.toFixed(2)}` : "",
+    phase !== "opening" ? `Actual money drop: AED ${actualCash.toFixed(2)}` : "",
+    phase !== "opening" ? `Actual minus expected money drop: AED ${rawCashVariance.toFixed(2)}` : "",
     phase !== "opening" && changeReturned ? `Change to be returned: AED ${changeReturned.toFixed(2)}` : "",
     phase !== "opening" ? `Auto cash variance after change return: AED ${cashVariance.toFixed(2)}` : "",
     phase !== "opening" ? `Auto card variance: AED ${cardVariance.toFixed(2)}` : "",
